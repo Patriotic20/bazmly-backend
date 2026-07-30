@@ -10,7 +10,7 @@ class AppError(Exception):
 
     status_code: int = 500
     code: str = "internal_error"
-    message: str = "Internal server error"
+    message: str = "Serverda xatolik yuz berdi"
 
     def __init__(
         self,
@@ -30,25 +30,25 @@ class AppError(Exception):
 class BadRequestError(AppError):
     status_code = 400
     code = "bad_request"
-    message = "Bad request"
+    message = "So'rov noto'g'ri"
 
 
 class UnauthorizedError(AppError):
     status_code = 401
     code = "unauthorized"
-    message = "Unauthorized"
+    message = "Avtorizatsiya talab qilinadi"
 
 
 class ForbiddenError(AppError):
     status_code = 403
     code = "forbidden"
-    message = "Forbidden"
+    message = "Ruxsat yo'q"
 
 
 class ConflictError(AppError):
     status_code = 409
     code = "conflict"
-    message = "Conflict"
+    message = "Ziddiyat yuz berdi"
 
 
 class DomainError(Exception):
@@ -66,7 +66,7 @@ class DomainError(Exception):
     """
 
     code: str = "domain_error"
-    message: str = "Request could not be completed"
+    message: str = "So'rovni bajarib bo'lmadi"
 
     def __init__(
         self,
@@ -85,17 +85,17 @@ class DomainError(Exception):
 
 class NotFoundError(DomainError):
     code = "not_found"
-    message = "Resource not found"
+    message = "Ma'lumot topilmadi"
 
 
 class PermissionDeniedError(DomainError):
     code = "permission_denied"
-    message = "You do not have permission to do that"
+    message = "Bu amalni bajarishga ruxsatingiz yo'q"
 
 
 class ValidationFailedError(DomainError):
     code = "validation_failed"
-    message = "The request is not valid"
+    message = "So'rov to'g'ri emas"
 
 
 # --- registration and identity ---------------------------------------------
@@ -103,22 +103,22 @@ class ValidationFailedError(DomainError):
 
 class PhoneAlreadyRegisteredError(DomainError):
     code = "phone_already_registered"
-    message = "That phone number is already registered"
+    message = "Bu telefon raqami allaqachon ro'yxatda"
 
 
 class InvalidCodeError(DomainError):
     code = "invalid_code"
-    message = "The confirmation code is incorrect"
+    message = "Tasdiqlash kodi noto'g'ri"
 
 
 class CodeExpiredError(DomainError):
     code = "code_expired"
-    message = "The confirmation code has expired"
+    message = "Tasdiqlash kodi muddati tugagan"
 
 
 class TooManyAttemptsError(DomainError):
     code = "too_many_attempts"
-    message = "Too many attempts. Try again later"
+    message = "Urinishlar juda ko'p. Keyinroq urinib ko'ring"
 
 
 # --- booking ----------------------------------------------------------------
@@ -126,37 +126,37 @@ class TooManyAttemptsError(DomainError):
 
 class TableAlreadyBookedError(DomainError):
     code = "table_already_booked"
-    message = "That table is already booked for this time"
+    message = "Bu stol shu vaqtga allaqachon band"
 
 
 class VenueAlreadyBookedError(DomainError):
     code = "venue_already_booked"
-    message = "This venue is already booked for that day"
+    message = "Bu muassasa o'sha kunga allaqachon band"
 
 
 class VenueClosedError(DomainError):
     code = "venue_closed"
-    message = "The venue is closed at that time"
+    message = "Muassasa o'sha vaqtda yopiq"
 
 
 class LeadTimeTooShortError(DomainError):
     code = "lead_time_too_short"
-    message = "This venue needs more notice for a booking"
+    message = "Bu muassasa bronni oldinroq talab qiladi"
 
 
 class CapacityExceededError(DomainError):
     code = "capacity_exceeded"
-    message = "That party size does not fit"
+    message = "Bu mehmonlar soni uchun joy mos kelmaydi"
 
 
 class DepositRequiredError(DomainError):
     code = "deposit_required"
-    message = "A deposit is required to confirm this booking"
+    message = "Bu bronni tasdiqlash uchun oldindan to'lov talab qilinadi"
 
 
 class BookingNotCheckInableError(DomainError):
     code = "booking_not_check_inable"
-    message = "This booking cannot be checked in"
+    message = "Bu bronni qayd etib bo'lmaydi"
 
 
 # --- orders -----------------------------------------------------------------
@@ -164,17 +164,17 @@ class BookingNotCheckInableError(DomainError):
 
 class TableHasOpenOrderError(DomainError):
     code = "table_has_open_order"
-    message = "That table already has an open check"
+    message = "Bu stolda allaqachon ochiq chek bor"
 
 
 class PaymentIncompleteError(DomainError):
     code = "payment_incomplete"
-    message = "The check is not fully paid"
+    message = "Chek to'liq to'lanmagan"
 
 
 class ReceiptAlreadyIssuedError(DomainError):
     code = "receipt_already_issued"
-    message = "A receipt has already been issued for this order"
+    message = "Bu buyurtma uchun chek allaqachon chiqarilgan"
 
 
 # --- promotions and reviews -------------------------------------------------
@@ -182,14 +182,14 @@ class ReceiptAlreadyIssuedError(DomainError):
 
 class PromoCodeInvalidError(DomainError):
     code = "promo_code_invalid"
-    message = "That promo code cannot be used"
+    message = "Bu promokoddan foydalanib bo'lmaydi"
 
 
 class PromoCodeExhaustedError(DomainError):
     code = "promo_code_exhausted"
-    message = "That promo code has been fully used"
+    message = "Bu promokod to'liq ishlatilgan"
 
 
 class AlreadyReviewedError(DomainError):
     code = "already_reviewed"
-    message = "This booking has already been reviewed"
+    message = "Bu bronga allaqachon sharh qoldirilgan"

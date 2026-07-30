@@ -50,6 +50,6 @@ def translate_integrity_error(error: IntegrityError) -> DomainError:
     if name is not None and name in CONSTRAINT_ERRORS:
         return CONSTRAINT_ERRORS[name]()
     return ValidationFailedError(
-        "The request conflicts with the current state of the data",
+        "So'rov mavjud ma'lumotlarga to'g'ri kelmaydi",
         details={"constraint": name} if name else None,
     )

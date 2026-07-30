@@ -123,7 +123,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(
             status_code=422,
             code="validation_error",
-            message="Request validation failed",
+            message="So'rov tekshiruvdan o'tmadi",
             details={"errors": jsonable_errors(exc)},
         )
 
@@ -142,7 +142,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(
             status_code=409,
             code="integrity_error",
-            message="The request conflicts with the current state of the database",
+            message="So'rov ma'lumotlar bazasining hozirgi holatiga to'g'ri kelmaydi",
         )
 
     @app.exception_handler(Exception)
@@ -156,7 +156,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return error_response(
             status_code=500,
             code="internal_error",
-            message="Internal server error",
+            message="Serverda xatolik yuz berdi",
         )
 
 
