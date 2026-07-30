@@ -80,10 +80,10 @@ class VenueOnboardingService:
         """
         venue = await self.venues.get_by_id(venue_id)
         if venue is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
         if venue.onboarding_step < STEP_MEDIA:
             raise ValidationFailedError(
-                "Finish the earlier onboarding steps first",
+                "Avval oldingi sozlash bosqichlarini yakunlang",
                 details={"current_step": venue.onboarding_step, "required": STEP_MEDIA},
             )
 
@@ -96,20 +96,20 @@ class VenueOnboardingService:
             },
         )
         if updated is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
         await self.session.commit()
         return _venue_read(updated)
 
     async def _apply_step(self, venue_id: int, values: dict[str, object], step: int) -> VenueRead:
         venue = await self.venues.get_by_id(venue_id)
         if venue is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
 
         values = dict(values)
         values["onboarding_step"] = max(venue.onboarding_step, step)
         updated = await self.venues.update_fields(venue_id, values)
         if updated is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
         await self.session.commit()
         return _venue_read(updated)
 

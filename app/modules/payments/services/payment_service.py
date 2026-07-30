@@ -62,7 +62,7 @@ class PaymentService:
             provider, provider_transaction_id
         )
         if payment is None:
-            raise NotFoundError("No payment matches that transaction")
+            raise NotFoundError("Bu tranzaksiyaga mos to'lov topilmadi")
 
         if payment.status == PaymentStatus.PAID:
             return PaymentRead.model_validate(payment)

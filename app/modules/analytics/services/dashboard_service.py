@@ -45,7 +45,7 @@ class DashboardService:
 
         group_detail = await self.groups.get_with_branches(group_id, language_id)
         if group_detail is None:
-            raise NotFoundError("Venue group not found")
+            raise NotFoundError("Tarmoq topilmadi")
 
         branch_counts = await self.venues.count_by_status_for_group(group_id)
         staff_counts = await self.staff.count_by_active_for_group(group_id)

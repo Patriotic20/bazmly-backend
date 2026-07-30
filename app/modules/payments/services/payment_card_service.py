@@ -43,7 +43,7 @@ class PaymentCardService:
 
         refreshed = await self.cards.get_by_id(card.id)
         if refreshed is None:
-            raise NotFoundError("Card not found")
+            raise NotFoundError("Karta topilmadi")
         return PaymentCardRead.model_validate(refreshed)
 
     async def set_default(self, user_id: int, card_id: int) -> PaymentCardRead:
@@ -51,6 +51,6 @@ class PaymentCardService:
         two defaults or none."""
         updated = await self.cards.set_default(user_id, card_id)
         if updated is None:
-            raise NotFoundError("Card not found")
+            raise NotFoundError("Karta topilmadi")
         await self.session.commit()
         return PaymentCardRead.model_validate(updated)

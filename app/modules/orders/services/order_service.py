@@ -84,7 +84,7 @@ class OrderService:
 
         table = await self.tables.get_by_id(payload.table_id)
         if table is None or table.venue_id != venue_id:
-            raise NotFoundError("That table does not belong to this venue")
+            raise NotFoundError("Bu stol ushbu muassasaga tegishli emas")
 
         now = utcnow_naive()
         try:
@@ -189,7 +189,7 @@ class OrderService:
     async def get_detail(self, order_id: int, venue_id: int) -> OrderDetailRead:
         order = await self.orders.get_by_id(order_id)
         if order is None or order.venue_id != venue_id:
-            raise NotFoundError("Order not found at this venue")
+            raise NotFoundError("Bu muassasada bunday buyurtma topilmadi")
 
         items = await self.orders.list_items(order_id)
         payments = await self.orders.list_payments(order_id)
@@ -246,12 +246,12 @@ class OrderService:
 
         order = await self.orders.get_by_id(order_id)
         if order is None or order.venue_id != venue_id:
-            raise NotFoundError("Order not found at this venue")
+            raise NotFoundError("Bu muassasada bunday buyurtma topilmadi")
 
         paid = await self.orders.sum_payments(order_id)
         if paid < order.total_amount:
             raise PaymentIncompleteError(
-                "The check is not fully paid",
+                "Chek to'liq to'lanmagan",
                 details={
                     "total_amount": str(order.total_amount),
                     "paid_amount": str(paid),
@@ -270,7 +270,7 @@ class OrderService:
         closed = await self.orders.close(order_id, staff_row.id, utcnow_naive())
         if closed is None:
             raise ValidationFailedError(
-                "This check cannot be closed from its current status",
+                "Chekni hozirgi holatidan yakunlab bo'lmaydi",
                 details={"status": order.status},
             )
         await self.session.commit()
@@ -283,7 +283,7 @@ class OrderService:
         staff_row = await self.staff.employment_for_in_transaction(staff_user_id, venue_id)
         cancelled = await self.orders.cancel(order_id, staff_row.id, utcnow_naive(), payload.reason)
         if cancelled is None:
-            raise NotFoundError("Order not found, or already closed")
+            raise NotFoundError("Buyurtma topilmadi yoki allaqachon yopilgan")
         await self.session.commit()
         return OrderRead.model_validate(cancelled)
 
@@ -309,9 +309,9 @@ class OrderService:
     async def _require_open_order(self, order_id: int, venue_id: int) -> Order:
         order = await self.orders.get_by_id(order_id)
         if order is None or order.venue_id != venue_id:
-            raise NotFoundError("Order not found at this venue")
+            raise NotFoundError("Bu muassasada bunday buyurtma topilmadi")
         if order.status in (OrderStatus.COMPLETED, OrderStatus.CANCELLED):
-            raise ValidationFailedError("This check is already closed")
+            raise ValidationFailedError("Bu chek allaqachon yopilgan")
         return order
 
     def _elapsed(self, opened_at: datetime, now: datetime) -> int:

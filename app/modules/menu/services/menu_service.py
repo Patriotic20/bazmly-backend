@@ -83,7 +83,7 @@ class MenuService:
     async def get_item(self, item_id: int, venue_id: int, language_id: int) -> MenuItemRead:
         detail = await self.items.get_with_variants(item_id, venue_id, language_id)
         if detail is None:
-            raise NotFoundError("That dish is not on this branch's menu")
+            raise NotFoundError("Bu taom ushbu filial menyusida yo'q")
         return MenuItemRead(
             id=detail.item.id,
             menu_category_id=detail.item.menu_category_id,
@@ -208,7 +208,7 @@ class MenuService:
         await self.staff.require_permission_in_transaction(actor_user_id, venue_id, PERM_MENU_EDIT)
         item = await self.items.get_by_id(item_id)
         if item is None:
-            raise NotFoundError("Dish not found")
+            raise NotFoundError("Taom topilmadi")
 
         await self.items.set_branch_availability(
             item_id,

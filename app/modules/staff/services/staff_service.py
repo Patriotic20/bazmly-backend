@@ -68,7 +68,7 @@ class StaffService:
         allowed = await self.staff.has_permission(user_id, venue_id, permission_slug)
         if not allowed:
             raise PermissionDeniedError(
-                "You do not have permission to do that here",
+                "Bu yerda bu amalni bajarishga ruxsatingiz yo'q",
                 details={"permission": permission_slug, "venue_id": venue_id},
             )
 
@@ -84,7 +84,7 @@ class StaffService:
         for candidate in await self.staff.list_for_user(user_id):
             if candidate.venue_id is None:
                 return candidate
-        raise PermissionDeniedError("You are not staff at this venue")
+        raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
 
     async def list_for_group(
         self,
@@ -154,9 +154,9 @@ class StaffService:
 
         role = await self.roles.get_by_id(payload.staff_role_id)
         if role is None:
-            raise NotFoundError("That role does not exist")
+            raise NotFoundError("Bunday rol mavjud emas")
         if role.scope == "venue" and payload.venue_id is None:
-            raise ValidationFailedError("A venue-scoped role needs a branch")
+            raise ValidationFailedError("Filial darajasidagi rol uchun filial ko'rsatilishi kerak")
 
         temporary_password = generate_password()
         invitation = await self.invitations.create(
@@ -188,15 +188,15 @@ class StaffService:
         now = utcnow_naive()
         invitation = await self.invitations.get_active_by_phone(phone, now)
         if invitation is None:
-            raise NotFoundError("No active invitation for that number")
+            raise NotFoundError("Bu raqam uchun faol taklifnoma yo'q")
         if not verify_secret(payload.temporary_password, invitation.temp_password_hash):
-            raise PermissionDeniedError("The temporary password is incorrect")
+            raise PermissionDeniedError("Vaqtinchalik parol noto'g'ri")
 
         user = await self.users.get_by_phone(phone)
         if user is None:
             language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
             if language is None:
-                raise ValidationFailedError("No default language is configured")
+                raise ValidationFailedError("Asosiy til sozlanmagan")
             names = invitation.full_name.split(" ", 1)
             user = await self.users.create(
                 User(
@@ -216,7 +216,7 @@ class StaffService:
 
         role = await self.roles.get_by_id(invitation.staff_role_id)
         if role is None:
-            raise NotFoundError("That role no longer exists")
+            raise NotFoundError("Bu rol endi mavjud emas")
 
         try:
             employment = await self.staff.create(
@@ -244,7 +244,7 @@ class StaffService:
         await self.require_permission_in_transaction(actor_user_id, venue_id, PERM_STAFF_MANAGE)
         updated = await self.staff.set_active(staff_id, is_active, utcnow_naive())
         if updated is None:
-            raise NotFoundError("Staff member not found")
+            raise NotFoundError("Hodim topilmadi")
         await self.session.commit()
         return VenueStaffRead.model_validate(updated)
 

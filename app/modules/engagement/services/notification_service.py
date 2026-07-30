@@ -72,7 +72,7 @@ class NotificationService:
     async def mark_read(self, notification_id: int) -> NotificationRead:
         updated = await self.notifications.mark_read(notification_id, utcnow_naive())
         if updated is None:
-            raise NotFoundError("Notification not found, or already read")
+            raise NotFoundError("Bildirishnoma topilmadi yoki allaqachon o'qilgan")
         await self.session.commit()
         return NotificationRead.model_validate(updated)
 

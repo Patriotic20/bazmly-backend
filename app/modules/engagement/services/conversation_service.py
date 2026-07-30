@@ -52,9 +52,9 @@ class ConversationService:
         can never lag behind its own messages."""
         conversation = await self.conversations.get_by_id(conversation_id)
         if conversation is None:
-            raise NotFoundError("Conversation not found")
+            raise NotFoundError("Suhbat topilmadi")
         if sender_type == MessageSenderType.USER and conversation.user_id != sender_user_id:
-            raise PermissionDeniedError("That conversation belongs to someone else")
+            raise PermissionDeniedError("Bu suhbat boshqa foydalanuvchiga tegishli")
 
         message = await self.conversations.add_message(
             conversation_id=conversation_id,

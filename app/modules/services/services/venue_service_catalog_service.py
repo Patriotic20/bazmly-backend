@@ -83,7 +83,7 @@ class VenueServiceCatalogService:
         )
         catalog_entry = await self.catalog.get_by_id(payload.service_catalog_id)
         if catalog_entry is None:
-            raise NotFoundError("That service is not in the catalogue")
+            raise NotFoundError("Bu xizmat katalogda yo'q")
 
         service = await self.venue_services.create(
             VenueService(

@@ -38,7 +38,7 @@ class LocationService:
     async def get_region_with_districts(self, region_id: int) -> RegionWithDistrictsRead:
         result = await self.regions.get_with_districts(region_id)
         if result is None:
-            raise NotFoundError("Region not found")
+            raise NotFoundError("Viloyat topilmadi")
         return RegionWithDistrictsRead(
             id=result.region.id,
             name=result.region.name,
@@ -59,7 +59,7 @@ class LocationService:
         """
         district = await self.districts.get_by_id(payload.district_id)
         if district is None:
-            raise NotFoundError("District not found")
+            raise NotFoundError("Tuman topilmadi")
 
         location = await self.recent.upsert(
             user_id=user_id,

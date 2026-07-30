@@ -81,7 +81,7 @@ class VenueService:
     ) -> VenueDetailRead:
         detail = await self.venues.get_detail(venue_id, language_id)
         if detail is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
 
         is_open = await self.venues.is_open_at(venue_id, local_dt or utcnow_naive())
         venue = VenueRead.model_validate(detail.venue).model_copy(
@@ -142,7 +142,7 @@ class VenueService:
         )
         updated = await self.venues.update_fields(venue_id, payload.model_dump(exclude_unset=True))
         if updated is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
         await self.session.commit()
         return _venue_read(updated)
 

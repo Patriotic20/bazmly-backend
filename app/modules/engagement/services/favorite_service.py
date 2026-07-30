@@ -21,7 +21,7 @@ class FavoriteService:
         rather than an add and a remove that can disagree about current state."""
         venue = await self.venues.get_by_id(venue_id)
         if venue is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
 
         if await self.favorites.exists(user_id, venue_id):
             await self.favorites.remove(user_id, venue_id)

@@ -63,18 +63,18 @@ async def get_current_user(
     """
     token = _bearer_token(authorization)
     if token is None:
-        raise PermissionDeniedError("Authentication required")
+        raise PermissionDeniedError("Avtorizatsiya talab qilinadi")
 
     try:
         user_id = decode_access_token(token, settings.security.secret_key)
     except TokenError as error:
-        raise PermissionDeniedError("Access token is not valid") from error
+        raise PermissionDeniedError("Kirish tokeni yaroqsiz") from error
 
     # `get_profile` already excludes soft-deleted rows.
     user = await UserService(session).get_profile(user_id)
     if user.status != UserStatus.ACTIVE:
         raise PermissionDeniedError(
-            "This account is not active",
+            "Bu akkaunt faol emas",
             details={"status": user.status},
         )
     return user
@@ -98,16 +98,16 @@ async def get_current_user_pending_ok(
     """
     token = _bearer_token(authorization)
     if token is None:
-        raise PermissionDeniedError("Authentication required")
+        raise PermissionDeniedError("Avtorizatsiya talab qilinadi")
 
     try:
         user_id = decode_access_token(token, settings.security.secret_key)
     except TokenError as error:
-        raise PermissionDeniedError("Access token is not valid") from error
+        raise PermissionDeniedError("Kirish tokeni yaroqsiz") from error
 
     user = await UserService(session).get_profile(user_id)
     if user.status not in (UserStatus.ACTIVE, UserStatus.PENDING_PROFILE):
-        raise PermissionDeniedError("This account is not active", details={"status": user.status})
+        raise PermissionDeniedError("Bu akkaunt faol emas", details={"status": user.status})
     return user
 
 
@@ -161,7 +161,7 @@ async def get_language_id(
 
     fallback = await languages.get_by_code(DEFAULT_LANGUAGE_CODE)
     if fallback is None:
-        raise ValidationFailedError("No languages are configured")
+        raise ValidationFailedError("Tillar sozlanmagan")
     return fallback.id
 
 
@@ -203,7 +203,7 @@ def get_client_location(
     if lat is None and lng is None:
         return None
     if lat is None or lng is None:
-        raise ValidationFailedError("lat and lng must be supplied together")
+        raise ValidationFailedError("`lat` va `lng` birgalikda yuborilishi kerak")
     return ClientLocation(latitude=lat, longitude=lng)
 
 
@@ -231,7 +231,7 @@ def require_permission(slug: str) -> params.Depends:
         raw = request.path_params.get("venue_id", venue_id_query)
         if raw is None:
             raise ValidationFailedError(
-                "venue_id is required for this operation",
+                "Bu amal uchun `venue_id` talab qilinadi",
                 details={"permission": slug},
             )
         venue_id = int(raw)

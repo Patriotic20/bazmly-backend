@@ -53,7 +53,7 @@ class VenueTableService:
         if payload.zone_id is not None:
             zone = await self.zones.get_by_id(payload.zone_id)
             if zone is None or zone.venue_id != venue_id:
-                raise NotFoundError("That zone does not belong to this venue")
+                raise NotFoundError("Bu zona ushbu muassasaga tegishli emas")
 
         created = await self.tables.bulk_create_from_counts(
             venue_id, payload.counts, payload.zone_id

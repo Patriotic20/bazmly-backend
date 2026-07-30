@@ -20,7 +20,7 @@ class UserService:
     async def get_profile(self, user_id: int) -> UserRead:
         user = await self.users.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError("Foydalanuvchi topilmadi")
         return UserRead.model_validate(user)
 
     async def update_profile(self, user_id: int, payload: UserProfileUpdate) -> UserRead:
@@ -32,7 +32,7 @@ class UserService:
         """
         user = await self.users.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError("Foydalanuvchi topilmadi")
 
         values = payload.model_dump(exclude_unset=True)
         first_name = values.get("first_name", user.first_name)
@@ -42,7 +42,7 @@ class UserService:
 
         updated = await self.users.update_profile(user_id, values)
         if updated is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError("Foydalanuvchi topilmadi")
         await self.session.commit()
         return UserRead.model_validate(updated)
 
@@ -63,7 +63,7 @@ class UserService:
         now = utcnow_naive()
         user = await self.users.get_by_id(user_id)
         if user is None:
-            raise NotFoundError("User not found")
+            raise NotFoundError("Foydalanuvchi topilmadi")
 
         await self.tokens.revoke_all_for_user(user_id, now)
         await self.cards.delete_all_for_user(user_id)

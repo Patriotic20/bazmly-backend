@@ -35,7 +35,7 @@ class ReceiptService:
         existing = await self.receipts.get_by_order(order_id)
         if existing is not None:
             raise ReceiptAlreadyIssuedError(
-                "This order already has a receipt",
+                "Bu buyurtma uchun chek allaqachon chiqarilgan",
                 details={"receipt_number": existing.receipt_number},
             )
 
@@ -53,17 +53,17 @@ class ReceiptService:
     async def get_for_order(self, order_id: int) -> ReceiptRead:
         receipt = await self.receipts.get_by_order(order_id)
         if receipt is None:
-            raise NotFoundError("No receipt has been issued for this order")
+            raise NotFoundError("Bu buyurtma uchun chek chiqarilmagan")
         return ReceiptRead.model_validate(receipt)
 
     async def reprint(self, order_id: int) -> ReceiptRead:
         """Increments the counter and changes nothing else."""
         receipt = await self.receipts.get_by_order(order_id)
         if receipt is None:
-            raise NotFoundError("No receipt has been issued for this order")
+            raise NotFoundError("Bu buyurtma uchun chek chiqarilmagan")
         await self.receipts.increment_reprint(receipt.id)
         await self.session.commit()
         refreshed = await self.receipts.get_by_order(order_id)
         if refreshed is None:
-            raise NotFoundError("No receipt has been issued for this order")
+            raise NotFoundError("Bu buyurtma uchun chek chiqarilmagan")
         return ReceiptRead.model_validate(refreshed)

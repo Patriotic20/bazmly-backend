@@ -40,12 +40,12 @@ class ReviewService:
     async def create(self, user_id: int, payload: ReviewCreate) -> ReviewRead:
         booking = await self.bookings.get_by_id(payload.booking_id)
         if booking is None:
-            raise NotFoundError("Booking not found")
+            raise NotFoundError("Bron topilmadi")
         if booking.user_id != user_id:
-            raise PermissionDeniedError("That booking belongs to someone else")
+            raise PermissionDeniedError("Bu bron boshqa foydalanuvchiga tegishli")
         if booking.status != BookingStatus.COMPLETED:
             raise ValidationFailedError(
-                "You can review a visit only after it is completed",
+                "Sharh faqat tashrif yakunlangandan keyin qoldiriladi",
                 details={"status": booking.status},
             )
 
@@ -77,11 +77,11 @@ class ReviewService:
         """
         review = await self.reviews.get_by_id(review_id)
         if review is None:
-            raise NotFoundError("Review not found")
+            raise NotFoundError("Sharh topilmadi")
 
         updated = await self.reviews.set_status(review_id, ReviewStatus.PUBLISHED, utcnow_naive())
         if updated is None:
-            raise NotFoundError("Review not found")
+            raise NotFoundError("Sharh topilmadi")
         await self.venues.recompute_rating(review.venue_id)
         await self.session.commit()
         return ReviewRead.model_validate(updated)

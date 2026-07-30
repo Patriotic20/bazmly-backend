@@ -70,7 +70,7 @@ class AvailabilityService:
         """The greyed-out chips: days a hall event already owns."""
         venue = await self.venues.get_by_id(venue_id)
         if venue is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
 
         dates = await self.bookings.blocked_dates_for_venue(venue_id, date_from, date_to)
         return BlockedDatesRead(venue_id=venue_id, dates=list(dates))

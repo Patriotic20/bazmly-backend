@@ -103,16 +103,16 @@ class PromoCodeService:
         promo = await self.promo_codes.get_by_code(code)
 
         if promo is None:
-            raise PromoCodeInvalidError("That promo code does not exist")
+            raise PromoCodeInvalidError("Bunday promokod mavjud emas")
         if not promo.is_active:
-            raise PromoCodeInvalidError("That promo code is no longer active")
+            raise PromoCodeInvalidError("Bu promokod endi faol emas")
         if not self._inside_window(promo.valid_from, promo.valid_to, now):
-            raise PromoCodeInvalidError("That promo code is outside its valid dates")
+            raise PromoCodeInvalidError("Bu promokod amal qilish muddatidan tashqarida")
         if not self._applies(promo.applies_to, applies_to):
-            raise PromoCodeInvalidError("That promo code does not apply to this purchase")
+            raise PromoCodeInvalidError("Bu promokod ushbu xaridga tegishli emas")
         if promo.min_amount is not None and subtotal < promo.min_amount:
             raise PromoCodeInvalidError(
-                "The order is below this code's minimum",
+                "Buyurtma summasi promokod uchun eng kam summadan past",
                 details={"min_amount": str(promo.min_amount)},
             )
         if promo.usage_limit_total is not None and promo.used_count >= promo.usage_limit_total:
@@ -120,7 +120,7 @@ class PromoCodeService:
 
         used_by_user = await self.promo_codes.count_redemptions_for_user(promo.id, user_id)
         if used_by_user >= promo.usage_limit_per_user:
-            raise PromoCodeExhaustedError("You have already used this code")
+            raise PromoCodeExhaustedError("Siz bu promokoddan allaqachon foydalangansiz")
 
         return PromoApplication(
             promo_code_id=promo.id,

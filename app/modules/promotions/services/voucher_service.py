@@ -36,7 +36,7 @@ class VoucherService:
     async def mark_used(self, user_promo_code_id: int) -> UserPromoCodeRead:
         updated = await self.vouchers.mark_used(user_promo_code_id, utcnow_naive())
         if updated is None:
-            raise NotFoundError("That voucher is not available")
+            raise NotFoundError("Bu vaucher mavjud emas")
         await self.session.commit()
         return UserPromoCodeRead.model_validate(updated)
 

@@ -17,11 +17,11 @@ class FriendshipService:
 
     async def request(self, requester_id: int, addressee_id: int) -> FriendshipRead:
         if requester_id == addressee_id:
-            raise ValidationFailedError("You cannot add yourself")
+            raise ValidationFailedError("O'zingizni qo'sha olmaysiz")
 
         addressee = await self.users.get_by_id(addressee_id)
         if addressee is None:
-            raise NotFoundError("That person could not be found")
+            raise NotFoundError("Bu foydalanuvchi topilmadi")
 
         # Either direction counts: the constraint is ordered, the relationship is not.
         existing = await self.friendships.get_between(requester_id, addressee_id)
@@ -43,14 +43,14 @@ class FriendshipService:
     ) -> FriendshipRead:
         friendship = await self.friendships.get_by_id(friendship_id)
         if friendship is None:
-            raise NotFoundError("Friend request not found")
+            raise NotFoundError("Do'stlik so'rovi topilmadi")
         if friendship.addressee_id != user_id:
-            raise PermissionDeniedError("Only the addressee can answer this request")
+            raise PermissionDeniedError("Bu so'rovga faqat qabul qiluvchi javob bera oladi")
 
         status = FriendshipStatus.ACCEPTED if payload.accept else FriendshipStatus.BLOCKED
         updated = await self.friendships.update_status(friendship_id, status)
         if updated is None:
-            raise NotFoundError("Friend request not found")
+            raise NotFoundError("Do'stlik so'rovi topilmadi")
         await self.session.commit()
         return FriendshipRead.model_validate(updated)
 

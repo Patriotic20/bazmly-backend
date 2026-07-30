@@ -100,10 +100,10 @@ class BookingService:
 
         table = await self.tables.get_by_id(payload.table_id)
         if table is None or table.venue_id != venue.id:
-            raise NotFoundError("That table does not belong to this venue")
+            raise NotFoundError("Bu stol ushbu muassasaga tegishli emas")
         if table.seats < payload.guests_count:
             raise CapacityExceededError(
-                f"Table {table.number} seats {table.seats}, not {payload.guests_count}"
+                f"{table.number}-stol {table.seats} o'rinlik, {payload.guests_count} emas"
             )
 
         overlapping = await self.bookings.find_overlapping(
@@ -111,8 +111,8 @@ class BookingService:
         )
         if overlapping:
             raise TableAlreadyBookedError(
-                f"Table {table.number} is already booked between "
-                f"{payload.start_time:%H:%M} and {payload.end_time:%H:%M}"
+                f"{table.number}-stol {payload.start_time:%H:%M} va "
+                f"{payload.end_time:%H:%M} oralig'ida allaqachon band"
             )
 
         items, menu_subtotal = await self._build_items_in_transaction(
@@ -188,7 +188,7 @@ class BookingService:
         tier = await self.tiers.get_for_guest_count(venue.id, payload.guests_count)
         if tier is None:
             raise CapacityExceededError(
-                f"This venue has no pricing band for {payload.guests_count} guests"
+                f"{payload.guests_count} mehmon uchun bu muassasada narx bosqichi yo'q"
             )
 
         service_rows, services_total = await self._build_services_in_transaction(
@@ -276,9 +276,9 @@ class BookingService:
         """The owner's own booking. The only place `qr_token` is returned."""
         booking = await self.bookings.get_by_id(booking_id)
         if booking is None:
-            raise NotFoundError("Booking not found")
+            raise NotFoundError("Bron topilmadi")
         if booking.user_id != user_id:
-            raise PermissionDeniedError("This booking belongs to someone else")
+            raise PermissionDeniedError("Bu bron boshqa foydalanuvchiga tegishli")
         return await self._detail_in_transaction(booking, venue_name=None)
 
     async def venue_day(
@@ -295,11 +295,11 @@ class BookingService:
         now = utcnow_naive()
         booking = await self.bookings.get_by_id(booking_id)
         if booking is None:
-            raise NotFoundError("Booking not found")
+            raise NotFoundError("Bron topilmadi")
         if booking.user_id != user_id:
-            raise PermissionDeniedError("This booking belongs to someone else")
+            raise PermissionDeniedError("Bu bron boshqa foydalanuvchiga tegishli")
         if booking.status in (BookingStatus.CANCELLED, BookingStatus.COMPLETED):
-            raise BookingNotCheckInableError("This booking can no longer be cancelled")
+            raise BookingNotCheckInableError("Bu bronni endi bekor qilib bo'lmaydi")
 
         forfeited = self._deposit_is_forfeited(booking, now)
         comment = payload.reason or ("Deposit forfeited" if forfeited else "Deposit refundable")
@@ -307,7 +307,7 @@ class BookingService:
             booking_id, BookingStatus.CANCELLED, now, reason=payload.reason
         )
         if updated is None:
-            raise NotFoundError("Booking not found")
+            raise NotFoundError("Bron topilmadi")
         await self.bookings.record_status_change(
             booking_id,
             booking.status,
@@ -329,16 +329,14 @@ class BookingService:
         now = utcnow_naive()
         booking = await self.bookings.get_by_qr_token(qr_token)
         if booking is None or booking.venue_id != venue_id:
-            raise NotFoundError("That ticket does not belong to this venue")
+            raise NotFoundError("Bu chipta ushbu muassasaga tegishli emas")
 
         if not await self._staff_works_at(staff_user_id, booking.venue_id):
-            raise PermissionDeniedError("You are not staff at this venue")
+            raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
 
         updated = await self.bookings.check_in(booking.id, staff_user_id, now)
         if updated is None:
-            raise BookingNotCheckInableError(
-                "This booking is not confirmed, or has already been checked in"
-            )
+            raise BookingNotCheckInableError("Bu bron tasdiqlanmagan yoki allaqachon qayd etilgan")
         await self.session.commit()
         return BookingRead.model_validate(updated)
 
@@ -347,13 +345,13 @@ class BookingService:
         now = utcnow_naive()
         booking = await self.bookings.get_by_id(booking_id)
         if booking is None or booking.venue_id != venue_id:
-            raise NotFoundError("Booking not found at this venue")
+            raise NotFoundError("Bu muassasada bunday bron topilmadi")
         if not await self._staff_works_at(staff_user_id, venue_id):
-            raise PermissionDeniedError("You are not staff at this venue")
+            raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
 
         updated = await self.bookings.check_out(booking_id, now)
         if updated is None:
-            raise BookingNotCheckInableError("This booking is not checked in")
+            raise BookingNotCheckInableError("Bu bron qayd etilmagan")
         await self.bookings.record_status_change(
             booking_id,
             BookingStatus.CHECKED_IN,
@@ -379,7 +377,7 @@ class BookingService:
     async def _require_venue(self, venue_id: int) -> Venue:
         venue = await self.venues.get_by_id(venue_id)
         if venue is None:
-            raise NotFoundError("Venue not found")
+            raise NotFoundError("Muassasa topilmadi")
         return venue
 
     async def _guard_lead_time(self, venue: Venue, booking_date: date_type) -> None:
@@ -388,7 +386,7 @@ class BookingService:
         days_ahead = (booking_date - utcnow_naive().date()).days
         if days_ahead < required:
             raise LeadTimeTooShortError(
-                f"This venue needs at least {required} day(s) notice",
+                f"Bu muassasa kamida {required} kun oldin bron qilishni talab qiladi",
                 details={"required_days": required, "given_days": days_ahead},
             )
 
@@ -396,7 +394,7 @@ class BookingService:
         """Working hours with a special-day override, evaluated in the database."""
         local_dt = datetime.combine(booking_date, start_time)
         if not await self.venues.is_open_at(venue_id, local_dt):
-            raise VenueClosedError("The venue is closed at that time")
+            raise VenueClosedError("Muassasa o'sha vaqtda yopiq")
 
     async def _staff_works_at(self, user_id: int, venue_id: int) -> bool:
         rows = await self.staff.list_for_user(user_id)
@@ -447,7 +445,7 @@ class BookingService:
             return detail.name
         item: MenuItem | None = await self.menu_items.get_by_id(menu_item_id)
         if item is None:
-            raise NotFoundError("Menu item not found")
+            raise NotFoundError("Taom topilmadi")
         return f"#{item.id}"
 
     async def _build_services_in_transaction(
@@ -458,7 +456,7 @@ class BookingService:
         for entry in requested:
             service = await self.venue_services.get_by_id(entry.venue_service_id)
             if service is None:
-                raise NotFoundError("Service not found")
+                raise NotFoundError("Xizmat topilmadi")
             detail = await self.venue_services.get_with_items(service.id)
             name = f"#{service.id}" if detail is None else f"#{service.service_catalog_id}"
             line_total = _money(service.price * entry.quantity)

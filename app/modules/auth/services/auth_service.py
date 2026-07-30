@@ -78,7 +78,7 @@ class AuthService:
         )
         if recent >= MAX_CODES_PER_WINDOW:
             raise TooManyAttemptsError(
-                "Too many codes requested. Try again in a few minutes",
+                "Kod juda ko'p so'raldi. Bir necha daqiqadan keyin urinib ko'ring",
                 details={"retry_after_seconds": int(THROTTLE_WINDOW.total_seconds())},
             )
 
@@ -133,11 +133,11 @@ class AuthService:
         now = utcnow_naive()
         user = await self.users.get_by_login(payload.login)
         if user is None or user.password_hash is None:
-            raise PermissionDeniedError("Login or password is incorrect")
+            raise PermissionDeniedError("Login yoki parol noto'g'ri")
         if not verify_secret(payload.password, user.password_hash):
-            raise PermissionDeniedError("Login or password is incorrect")
+            raise PermissionDeniedError("Login yoki parol noto'g'ri")
         if user.status != UserStatus.ACTIVE:
-            raise PermissionDeniedError("This account is not active")
+            raise PermissionDeniedError("Bu akkaunt faol emas")
 
         await self.users.touch_last_login(user.id, now)
         pair = await self._issue_tokens_in_transaction(user, now)
@@ -158,7 +158,7 @@ class AuthService:
         if identity is not None:
             user = await self.users.get_by_id(identity.user_id)
             if user is None:
-                raise NotFoundError("The linked account no longer exists")
+                raise NotFoundError("Bog'langan akkaunt endi mavjud emas")
         else:
             user = None
             if payload.provider_email:
@@ -192,14 +192,14 @@ class AuthService:
             # victim, which is the only safe reading of the event.
             await self.tokens.revoke_all_for_user(stored.user_id, now)
             await self.session.commit()
-            raise PermissionDeniedError("Refresh token has been revoked")
+            raise PermissionDeniedError("Yangilash tokeni bekor qilingan")
 
         if stored is None or stored.expires_at <= now:
-            raise PermissionDeniedError("Refresh token is not valid")
+            raise PermissionDeniedError("Yangilash tokeni yaroqsiz")
 
         user = await self.users.get_by_id(stored.user_id)
         if user is None:
-            raise NotFoundError("Account no longer exists")
+            raise NotFoundError("Akkaunt endi mavjud emas")
 
         # Rotation: the presented token dies as the replacement is minted, so a
         # stolen token is usable at most once and its reuse is detectable.
@@ -233,7 +233,7 @@ class AuthService:
         """First successful verification. `pending_profile` until a name is set."""
         language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
         if language is None:
-            raise ValidationFailedError("No default language is configured")
+            raise ValidationFailedError("Asosiy til sozlanmagan")
         try:
             return await self.users.create(
                 User(
@@ -252,7 +252,7 @@ class AuthService:
     async def _create_social_user_in_transaction(self, payload: SocialLogin) -> User:
         language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
         if language is None:
-            raise ValidationFailedError("No default language is configured")
+            raise ValidationFailedError("Asosiy til sozlanmagan")
         has_name = bool(payload.first_name)
         try:
             return await self.users.create(

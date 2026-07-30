@@ -21,7 +21,7 @@ class VenueGroupService:
     async def get_for_owner(self, owner_id: int) -> VenueGroupRead:
         group = await self.groups.get_by_owner(owner_id)
         if group is None:
-            raise NotFoundError("You do not own a venue group yet")
+            raise NotFoundError("Sizda hali tarmoq yo'q")
         return _group_read(group)
 
     async def get_with_branches(
@@ -29,7 +29,7 @@ class VenueGroupService:
     ) -> VenueGroupWithBranchesRead:
         result = await self.groups.get_with_branches(group_id, language_id)
         if result is None:
-            raise NotFoundError("Venue group not found")
+            raise NotFoundError("Tarmoq topilmadi")
         return VenueGroupWithBranchesRead(
             group=VenueGroupRead.model_validate(result.group).model_copy(
                 update={"name": result.name}
@@ -48,7 +48,7 @@ class VenueGroupService:
     async def update_details(self, group_id: int, payload: VenueGroupUpdate) -> VenueGroupRead:
         updated = await self.groups.update_fields(group_id, payload.model_dump(exclude_unset=True))
         if updated is None:
-            raise NotFoundError("Venue group not found")
+            raise NotFoundError("Tarmoq topilmadi")
         await self.session.commit()
         return _group_read(updated)
 
