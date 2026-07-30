@@ -53,8 +53,11 @@ async def _settle(session: SessionDep, provider: str, transaction_id: str, succe
     "/payme",
     response_model=dict[str, Any],
     operation_id="webhooks_payme",
-    summary="Payme callback",
-    description="HMAC-verified, idempotent on provider_transaction_id. Answers JSON-RPC.",
+    summary="Payme chaqiruvi",
+    description=(
+        "HMAC imzosi tekshiriladi, `provider_transaction_id` bo'yicha idempotent. "
+        "Javob JSON-RPC ko'rinishida qaytariladi."
+    ),
 )
 async def payme(
     request: Request,
@@ -85,8 +88,11 @@ async def payme(
     "/click",
     response_model=dict[str, Any],
     operation_id="webhooks_click",
-    summary="Click callback",
-    description="HMAC-verified, idempotent on provider_transaction_id. Answers Click's envelope.",
+    summary="Click chaqiruvi",
+    description=(
+        "HMAC imzosi tekshiriladi, `provider_transaction_id` bo'yicha idempotent. "
+        "Javob Click talab qiladigan ko'rinishda qaytariladi."
+    ),
 )
 async def click(
     request: Request,

@@ -40,8 +40,8 @@ main_router = APIRouter(prefix=settings.api.prefix)
     "/health",
     response_model=dict[str, Any],
     operation_id="health_check",
-    summary="Health check",
-    description="Build info plus a database ping. Outside versioning by design.",
+    summary="Holat tekshiruvi",
+    description="Versiya ma'lumoti va ma'lumotlar bazasi bilan aloqa tekshiruvi.",
 )
 async def health() -> dict[str, Any]:
     """Pings the database rather than only reporting that the process is up.

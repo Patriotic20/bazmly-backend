@@ -24,31 +24,45 @@ app = FastAPI(
     lifespan=lifespan,
     title="Bazmly API",
     version="1.0.0",
-    summary="Booking and venue management for restaurants and to'yxona.",
+    summary="Restoran va to'yxonalar uchun bron va muassasa boshqaruvi.",
     description=(
-        "Two audiences share this API. Customer routes live under `/api/v1/<module>`; "
-        "staff routes live under `/api/v1/venue/...` and are guarded by a permission "
-        "check against `venue_staff`, never by a claim in the token — so a role change "
-        "takes effect immediately rather than at the next token expiry.\n\n"
-        "Every error returns the same flat body: `code`, `message`, `details`, "
-        "`request_id`."
+        "Bu API ikki xil foydalanuvchiga xizmat qiladi. Mijoz yo'llari "
+        "`/api/v1/<modul>` ostida, hodimlar yo'llari esa `/api/v1/venue/...` ostida "
+        "joylashgan va ular `venue_staff` jadvalidagi ruxsat orqali tekshiriladi — "
+        "tokendagi da'vo orqali emas. Shu sababli rolni o'zgartirish token muddati "
+        "tugashini kutmasdan darhol kuchga kiradi.\n\n"
+        "Har qanday xatolik bir xil ko'rinishda qaytariladi: `code`, `message`, "
+        "`details`, `request_id`. Mijoz ilovasi doim `code` bo'yicha shart tuzishi "
+        "kerak — `message` faqat ekranda ko'rsatish uchun."
     ),
     # Under the API prefix so a reverse proxy can route one path to this service.
     docs_url=f"{settings.api.prefix}/docs",
     redoc_url=f"{settings.api.prefix}/redoc",
     openapi_url=f"{settings.api.prefix}/openapi.json",
+    # Declared in the order `app/core/router.py` includes them, so the Swagger
+    # sections follow the module order instead of first-use order.
     openapi_tags=[
-        {"name": "auth", "description": "Registration, sign-in and token rotation."},
-        {"name": "users", "description": "Profile, devices and friends."},
-        {"name": "venues", "description": "Customer-facing venue search and detail."},
-        {"name": "venue:venues", "description": "Filiallar — branch management."},
-        {"name": "venue:staff", "description": "Hodimlar — employment and invitations."},
-        {"name": "venue:menu", "description": "Menyu builder."},
-        {"name": "bookings", "description": "Customer bookings — the Joylar tab."},
-        {"name": "venue:bookings", "description": "Kutilayotgan mijozlar — the day queue."},
-        {"name": "venue:orders", "description": "Buyurtmalar — open checks on tables."},
-        {"name": "venue:analytics", "description": "Dashboard and reports."},
-        {"name": "webhooks", "description": "Payment provider callbacks. No JWT."},
+        {"name": "localization", "description": "Til sozlamalari: uz, en, ru."},
+        {"name": "geo", "description": "Viloyatlar va tumanlar."},
+        {"name": "catalog", "description": "Muassasa turlari va qulayliklar."},
+        {"name": "auth", "description": "Ro'yxatdan o'tish, kirish va token yangilash."},
+        {"name": "users", "description": "Profil, qurilmalar, do'stlar va manzillar."},
+        {"name": "venue:groups", "description": "Tarmoq — brend va uning filiallari."},
+        {"name": "venues", "description": "Mijoz uchun muassasa qidiruvi va ma'lumoti."},
+        {"name": "venue:venues", "description": "Filiallar — filial boshqaruvi."},
+        {"name": "venue:staff", "description": "Hodimlar — ish joyi va taklifnomalar."},
+        {"name": "venue:menu", "description": "Menyu konstruktori."},
+        {"name": "services", "description": "Qo'shimcha xizmatlar katalogi va narxlari."},
+        {"name": "bookings", "description": "Mijoz bronlari — Joylar bo'limi."},
+        {"name": "venue:bookings", "description": "Kutilayotgan mijozlar — kunlik navbat."},
+        {"name": "venue:orders", "description": "Buyurtmalar — stollardagi ochiq cheklar."},
+        {"name": "payments", "description": "To'lovlar va saqlangan kartalar."},
+        {"name": "subscriptions", "description": "Obuna tariflari."},
+        {"name": "promotions", "description": "Promokodlar, vaucherlar va bannerlar."},
+        {"name": "reviews", "description": "Sharhlar va reyting."},
+        {"name": "engagement", "description": "Sevimlilar, suhbatlar va Xabarlar."},
+        {"name": "venue:analytics", "description": "Boshqaruv paneli va hisobotlar."},
+        {"name": "webhooks", "description": "To'lov tizimi chaqiruvlari. JWT talab qilinmaydi."},
     ],
 )
 
