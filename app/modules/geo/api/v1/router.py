@@ -14,8 +14,8 @@ router = APIRouter(prefix="/v1/regions", tags=["geo"])
     "",
     response_model=list[RegionRead],
     operation_id="geo_list_regions",
-    summary="List regions",
-    description="Viloyatlar: Toshkent, Navoiy, Samarqand, Buxoro and the rest.",
+    summary="Viloyatlar ro'yxati",
+    description="Toshkent, Navoiy, Samarqand, Buxoro va boshqalar.",
 )
 async def list_regions(session: SessionDep) -> Sequence[RegionRead]:
     return await LocationService(session).list_regions()
@@ -25,8 +25,8 @@ async def list_regions(session: SessionDep) -> Sequence[RegionRead]:
     "/{region_id}/districts",
     response_model=list[DistrictRead],
     operation_id="geo_list_districts",
-    summary="List districts in a region",
-    description="Tuman and shahar rows share this level; the API calls it district.",
+    summary="Tumanlar ro'yxati",
+    description="Tuman va shahar bir darajada; API da bu `district` deb ataladi.",
 )
 async def list_districts(
     session: SessionDep, region_id: Annotated[int, Path(ge=1)]

@@ -13,8 +13,8 @@ router = APIRouter(prefix="/v1/subscriptions", tags=["subscriptions"])
     "/plans",
     response_model=list[SubscriptionPlanRead],
     operation_id="subscriptions_list_plans",
-    summary="List plans",
-    description="Monthly and yearly, with the subscriber benefit percentage.",
+    summary="Tariflar ro'yxati",
+    description="Oylik va yillik tariflar, obunachi chegirmasi foizi bilan.",
 )
 async def list_plans(
     session: SessionDep, language_id: LanguageId
@@ -26,8 +26,8 @@ async def list_plans(
     "/me",
     response_model=UserSubscriptionRead | None,
     operation_id="subscriptions_get_mine",
-    summary="My subscription",
-    description="Null when there is no active subscription.",
+    summary="Mening obunam",
+    description="Aktiv obuna bo'lmasa, `null` qaytariladi.",
 )
 async def get_mine(user: CurrentUser, session: SessionDep) -> UserSubscriptionRead | None:
     return await SubscriptionService(session).active_for_user(user.id)

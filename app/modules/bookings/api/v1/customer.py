@@ -23,8 +23,8 @@ router = APIRouter(prefix="/v1/bookings", tags=["bookings"])
     response_model=BookingOwnerDetail,
     status_code=status.HTTP_201_CREATED,
     operation_id="bookings_create_table_reservation",
-    summary="Book a table",
-    description="Restaurant reservation. Double booking returns 409 table_already_booked.",
+    summary="Stol bron qilish",
+    description="Restoran stoli. Takroriy bron 409 `table_already_booked` qaytaradi.",
 )
 async def create_table_reservation(
     payload: TableReservationCreate,
@@ -40,8 +40,8 @@ async def create_table_reservation(
     response_model=BookingOwnerDetail,
     status_code=status.HTTP_201_CREATED,
     operation_id="bookings_create_hall_event",
-    summary="Book a hall",
-    description="To'yxona event. The guest tier is resolved from the party size.",
+    summary="To'yxona bron qilish",
+    description="To'yxona tadbiri. Narx bosqichi mehmonlar soniga qarab aniqlanadi.",
 )
 async def create_hall_event(
     payload: HallEventCreate,
@@ -56,8 +56,10 @@ async def create_hall_event(
     "",
     response_model=list[BookingListItem],
     operation_id="bookings_list_mine",
-    summary="My bookings",
-    description="The Joylar tab. Carries no qr_token — a list is too easy to screenshot.",
+    summary="Joylar",
+    description=(
+        "Joylar bo'limi. `qr_token` qaytarilmaydi — ro'yxatni skrinshot qilish juda oson."
+    ),
 )
 async def list_mine(
     user: CurrentUser,
@@ -72,8 +74,8 @@ async def list_mine(
     "/{booking_id}",
     response_model=BookingOwnerDetail,
     operation_id="bookings_get_detail",
-    summary="Booking detail",
-    description="The owner's own booking, including its single-use qr_token.",
+    summary="Bron ma'lumoti",
+    description="Mijozning o'z broni, bir marta ishlatiladigan `qr_token` bilan.",
 )
 async def get_detail(
     user: CurrentUser,
@@ -87,8 +89,11 @@ async def get_detail(
     "/{booking_id}/cancel",
     response_model=BookingRead,
     operation_id="bookings_cancel",
-    summary="Cancel a booking",
-    description="Inside the deposit window the deposit is forfeited; the reason is recorded.",
+    summary="Bronni bekor qilish",
+    description=(
+        "Belgilangan muddat ichida oldindan to'lov qaytarilmaydi; sabab har "
+        "holatda yozib qo'yiladi."
+    ),
 )
 async def cancel(
     payload: BookingCancel,

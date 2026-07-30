@@ -20,8 +20,8 @@ router = APIRouter(prefix="/v1", tags=["promotions"])
     "/promo-codes/validate",
     response_model=PromoCodePreview,
     operation_id="promotions_validate_code",
-    summary="Check a promo code",
-    description="Returns the computed discount without consuming the code.",
+    summary="Promokodni tekshirish",
+    description="Chegirma hisoblab beriladi, promokod esa ishlatilmaydi.",
 )
 async def validate_code(
     payload: PromoCodeApply,
@@ -36,8 +36,8 @@ async def validate_code(
     "/vouchers",
     response_model=list[UserPromoCodeRead],
     operation_id="promotions_list_vouchers",
-    summary="My vouchers",
-    description="Promokodlar tab. seconds_remaining is computed at read, never stored.",
+    summary="Promokodlar",
+    description="`seconds_remaining` o'qish paytida hisoblanadi, saqlanmaydi.",
 )
 async def list_vouchers(user: CurrentUser, session: SessionDep) -> Sequence[UserPromoCodeRead]:
     return await VoucherService(session).list_for_user(user.id)
@@ -47,8 +47,8 @@ async def list_vouchers(user: CurrentUser, session: SessionDep) -> Sequence[User
     "/banners",
     response_model=list[BannerRead],
     operation_id="promotions_list_banners",
-    summary="Active banners",
-    description="Eng yaxshi takliflar carousel, inside its scheduling window.",
+    summary="Bannerlar",
+    description="Eng yaxshi takliflar karuseli, faqat amal qilish muddati ichida.",
 )
 async def list_banners(session: SessionDep, language_id: LanguageId) -> Sequence[BannerRead]:
     return await BannerService(session).list_active(language_id)

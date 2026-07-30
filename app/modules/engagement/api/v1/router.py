@@ -31,8 +31,8 @@ router = APIRouter(prefix="/v1", tags=["engagement"])
     "/favorites",
     response_model=list[FavoriteRead],
     operation_id="engagement_list_favorites",
-    summary="My saved venues",
-    description="The bookmark icon's list.",
+    summary="Sevimli muassasalar",
+    description="Xatcho'p belgisi orqali saqlangan muassasalar.",
 )
 async def list_favorites(
     user: CurrentUser, language_id: LanguageId, session: SessionDep
@@ -44,8 +44,10 @@ async def list_favorites(
     "/favorites",
     response_model=FavoriteToggled,
     operation_id="engagement_toggle_favorite",
-    summary="Toggle a saved venue",
-    description="Idempotent: one endpoint, so add and remove cannot disagree about state.",
+    summary="Sevimlini almashtirish",
+    description=(
+        "Idempotent: bitta yo'l, shuning uchun qo'shish va olib tashlash ziddiyatga tushmaydi."
+    ),
 )
 async def toggle_favorite(
     payload: FavoriteCreate, user: CurrentUser, session: SessionDep
@@ -57,8 +59,8 @@ async def toggle_favorite(
     "/favorites/{venue_id}",
     response_model=FavoriteToggled,
     operation_id="engagement_remove_favorite",
-    summary="Unsave a venue",
-    description="Returns the resulting state so the client does not have to guess.",
+    summary="Sevimlidan olib tashlash",
+    description="Natijaviy holatni qaytaradi, shunda mijoz ilovasi taxmin qilmaydi.",
 )
 async def remove_favorite(
     user: CurrentUser, session: SessionDep, venue_id: Annotated[int, Path(ge=1)]
@@ -70,8 +72,8 @@ async def remove_favorite(
     "/conversations",
     response_model=list[ConversationListItem],
     operation_id="engagement_list_conversations",
-    summary="My conversations",
-    description="Inbox rows with the last message and an unread count.",
+    summary="Suhbatlar",
+    description="Oxirgi xabar va o'qilmaganlar soni bilan birga.",
 )
 async def list_conversations(
     user: CurrentUser, session: SessionDep
@@ -84,8 +86,10 @@ async def list_conversations(
     response_model=ConversationRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="engagement_open_conversation",
-    summary="Open a conversation",
-    description="Xabar yuborish. One thread per user and venue, never one per booking.",
+    summary="Suhbat ochish",
+    description=(
+        "Xabar yuborish. Har bir mijoz va muassasa uchun bitta suhbat, har bron uchun emas."
+    ),
 )
 async def open_conversation(
     payload: ConversationCreate, user: CurrentUser, session: SessionDep
@@ -97,8 +101,8 @@ async def open_conversation(
     "/conversations/{conversation_id}/messages",
     response_model=list[MessageRead],
     operation_id="engagement_list_messages",
-    summary="Message history",
-    description="Newest first, paginated.",
+    summary="Xabarlar tarixi",
+    description="Eng yangisidan boshlab, sahifalab.",
 )
 async def list_messages(
     user: CurrentUser,
@@ -116,8 +120,8 @@ async def list_messages(
     response_model=MessageRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="engagement_send_message",
-    summary="Send a message",
-    description="Moves the thread's last_message_at in the same flush.",
+    summary="Xabar yuborish",
+    description="Suhbatning `last_message_at` maydoni ham shu yozuvda yangilanadi.",
 )
 async def send_message(
     payload: MessageCreate,
@@ -134,8 +138,10 @@ async def send_message(
     "/conversations/{conversation_id}/read",
     response_model=list[int],
     operation_id="engagement_mark_conversation_read",
-    summary="Mark a thread read",
-    description="Marks the other side's messages only — a sender never marks their own.",
+    summary="Suhbatni o'qilgan deb belgilash",
+    description=(
+        "Faqat qarshi tomon xabarlari belgilanadi — yuboruvchi o'z xabarini belgilamaydi."
+    ),
 )
 async def mark_conversation_read(
     user: CurrentUser, session: SessionDep, conversation_id: Annotated[int, Path(ge=1)]
@@ -147,8 +153,8 @@ async def mark_conversation_read(
     "/notifications",
     response_model=Page[NotificationRead],
     operation_id="engagement_list_notifications",
-    summary="My notifications",
-    description="Xabarlar. The client groups by sent_at into Today / This Week / This Month.",
+    summary="Xabarlar",
+    description="Mijoz ilovasi `sent_at` bo'yicha Bugun / Shu hafta / Shu oy ga ajratadi.",
 )
 async def list_notifications(
     user: CurrentUser, session: SessionDep, pagination: PaginationDep
@@ -162,8 +168,8 @@ async def list_notifications(
     "/notifications/unread-count",
     response_model=UnreadCountRead,
     operation_id="engagement_unread_count",
-    summary="Unread badge count",
-    description="Backs the badge on the Xabarlar tab.",
+    summary="O'qilmaganlar soni",
+    description="Xabarlar bo'limidagi belgi uchun.",
 )
 async def unread_count(user: CurrentUser, session: SessionDep) -> UnreadCountRead:
     return await NotificationService(session).unread_count(user.id)
@@ -173,8 +179,8 @@ async def unread_count(user: CurrentUser, session: SessionDep) -> UnreadCountRea
     "/notifications/{notification_id}/read",
     response_model=NotificationRead,
     operation_id="engagement_mark_notification_read",
-    summary="Mark one read",
-    description="Already-read notifications are a 404 rather than a silent success.",
+    summary="Bittasini o'qilgan deb belgilash",
+    description="Allaqachon o'qilgan bildirishnoma 404 qaytaradi.",
 )
 async def mark_notification_read(
     user: CurrentUser, session: SessionDep, notification_id: Annotated[int, Path(ge=1)]
@@ -186,8 +192,8 @@ async def mark_notification_read(
     "/notifications/read-all",
     response_model=list[int],
     operation_id="engagement_mark_all_notifications_read",
-    summary="Mark everything read",
-    description="Returns the ids affected.",
+    summary="Hammasini o'qilgan deb belgilash",
+    description="O'zgargan bildirishnomalar identifikatorlarini qaytaradi.",
 )
 async def mark_all_read(user: CurrentUser, session: SessionDep) -> Sequence[int]:
     return await NotificationService(session).mark_all_read(user.id)

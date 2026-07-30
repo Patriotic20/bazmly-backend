@@ -18,8 +18,8 @@ router = APIRouter(prefix="/v1", tags=["services"])
     "/service-catalog",
     response_model=list[ServiceCatalogRead],
     operation_id="services_list_catalog",
-    summary="List the service catalogue",
-    description="Qo'shimcha xizmatlar: a closed, platform-owned list.",
+    summary="Xizmatlar katalogi",
+    description="Qo'shimcha xizmatlar — platforma tomonidan belgilangan yopiq ro'yxat.",
 )
 async def list_catalog(
     session: SessionDep,
@@ -34,8 +34,8 @@ async def list_catalog(
     response_model=VenueServiceRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_services_create",
-    summary="Price a service",
-    description="A branch price overrides the chain price for the same catalogue entry.",
+    summary="Xizmatga narx belgilash",
+    description="Filial narxi shu xizmat uchun tarmoq narxidan ustun turadi.",
     dependencies=[require_permission("settings.edit")],
 )
 async def create_venue_service(

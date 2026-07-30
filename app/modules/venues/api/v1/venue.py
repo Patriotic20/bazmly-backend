@@ -34,8 +34,8 @@ router = APIRouter(prefix="/v1/venue/venues", tags=["venue:venues"])
     "",
     response_model=list[VenueRead],
     operation_id="venue_venues_list",
-    summary="List branches",
-    description="Filiallar for the signed-in owner's chain.",
+    summary="Filiallar ro'yxati",
+    description="Kirgan egasining tarmog'idagi filiallar.",
 )
 async def list_branches(
     user: CurrentUser,
@@ -50,8 +50,8 @@ async def list_branches(
     "/counts",
     response_model=VenueStatusCountsRead,
     operation_id="venue_venues_status_counts",
-    summary="Branch counters",
-    description="Jami / Aktiv / Yopiq on the Filiallar header, in one grouped query.",
+    summary="Filial hisoblagichlari",
+    description="Filiallar sarlavhasidagi Jami / Aktiv / Yopiq, bitta guruhlangan so'rovda.",
 )
 async def status_counts(
     user: CurrentUser,
@@ -65,8 +65,8 @@ async def status_counts(
     "/{venue_id}",
     response_model=VenueRead,
     operation_id="venue_venues_get",
-    summary="Get one branch",
-    description="The owner-side view of a filial.",
+    summary="Filial ma'lumoti",
+    description="Filialning egasi ko'radigan ma'lumoti.",
 )
 async def get_branch(
     language_id: LanguageId,
@@ -82,8 +82,8 @@ async def get_branch(
     "/{venue_id}",
     response_model=VenueRead,
     operation_id="venue_venues_update",
-    summary="Edit a branch",
-    description="Address, capacity, deposit policy and booking lead time.",
+    summary="Filialni tahrirlash",
+    description="Manzil, sig'im, oldindan to'lov shartlari va bron uchun oldindan xabar muddati.",
     dependencies=[require_permission("branch.manage")],
 )
 async def update_branch(
@@ -99,8 +99,10 @@ async def update_branch(
     "/{venue_id}/working-hours",
     response_model=VenueRead,
     operation_id="venue_venues_replace_working_hours",
-    summary="Replace the working week",
-    description="Rewrites all seven rows, so a removed day cannot survive as a stale row.",
+    summary="Ish vaqtini yangilash",
+    description=(
+        "Yettala kun qayta yoziladi, shunda olib tashlangan kun eski qator bo'lib qolmaydi."
+    ),
     dependencies=[require_permission("branch.manage")],
 )
 async def replace_working_hours(
@@ -116,8 +118,8 @@ async def replace_working_hours(
     "/{venue_id}/tables",
     response_model=list[VenueTableRead],
     operation_id="venue_venues_list_tables",
-    summary="List tables",
-    description="Numbered stollar for the Buyurtmalar board.",
+    summary="Stollar ro'yxati",
+    description="Buyurtmalar taxtasi uchun raqamlangan stollar.",
 )
 async def list_tables(
     user: CurrentUser,
@@ -133,8 +135,8 @@ async def list_tables(
     response_model=list[VenueTableRead],
     status_code=201,
     operation_id="venue_venues_create_tables_bulk",
-    summary="Create tables from capacity counts",
-    description="Onboarding's 2/4/6/8/10+ buckets, expanded into numbered rows.",
+    summary="Stollarni sig'im bo'yicha yaratish",
+    description="Boshlang'ich sozlashdagi 2/4/6/8/10+ guruhlari raqamlangan stollarga yoyiladi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def create_tables_bulk(
@@ -150,8 +152,8 @@ async def create_tables_bulk(
     "/{venue_id}/zones",
     response_model=list[VenueZoneRead],
     operation_id="venue_venues_list_zones",
-    summary="List zones",
-    description="Ichkari and Tashqari, used by the Stollar board's filter chips.",
+    summary="Zonalar ro'yxati",
+    description="Ichkari va Tashqari — Stollar taxtasidagi filtr uchun.",
 )
 async def list_zones(
     user: CurrentUser,
@@ -166,8 +168,8 @@ async def list_zones(
     "/{venue_id}/onboarding/address",
     response_model=VenueRead,
     operation_id="venue_venues_onboarding_address",
-    summary="Onboarding: address",
-    description="Advances onboarding_step so a half-finished wizard can resume.",
+    summary="Boshlang'ich sozlash: manzil",
+    description="`onboarding_step` ni oshiradi, shunda tugallanmagan sozlash davom ettiriladi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def onboarding_address(
@@ -182,8 +184,8 @@ async def onboarding_address(
     "/{venue_id}/onboarding/tables-done",
     response_model=VenueRead,
     operation_id="venue_venues_onboarding_tables_done",
-    summary="Onboarding: tables complete",
-    description="Marks the Stollar step finished.",
+    summary="Boshlang'ich sozlash: stollar",
+    description="Stollar bosqichi tugallangan deb belgilanadi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def onboarding_tables_done(
@@ -196,8 +198,8 @@ async def onboarding_tables_done(
     "/{venue_id}/onboarding/services-done",
     response_model=VenueRead,
     operation_id="venue_venues_onboarding_services_done",
-    summary="Onboarding: services complete",
-    description="Marks the Qo'shimcha xizmatlar step finished.",
+    summary="Boshlang'ich sozlash: xizmatlar",
+    description="Qo'shimcha xizmatlar bosqichi tugallangan deb belgilanadi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def onboarding_services_done(
@@ -210,8 +212,8 @@ async def onboarding_services_done(
     "/{venue_id}/onboarding/media-done",
     response_model=VenueRead,
     operation_id="venue_venues_onboarding_media_done",
-    summary="Onboarding: media complete",
-    description="Marks the Media va vizual step finished.",
+    summary="Boshlang'ich sozlash: media",
+    description="Media va vizual bosqichi tugallangan deb belgilanadi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def onboarding_media_done(
@@ -224,8 +226,8 @@ async def onboarding_media_done(
     "/{venue_id}/onboarding/finish",
     response_model=VenueRead,
     operation_id="venue_venues_onboarding_finish",
-    summary="Go live",
-    description="Restaurant is live: sets status active and onboarded_at.",
+    summary="Nashr qilish",
+    description="Filial ishga tushadi: status `active` va `onboarded_at` yoziladi.",
     dependencies=[require_permission("branch.manage")],
 )
 async def onboarding_finish(

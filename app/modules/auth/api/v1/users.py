@@ -29,8 +29,8 @@ router = APIRouter(prefix="/v1/users", tags=["users"])
     "/me",
     response_model=UserRead,
     operation_id="users_get_me",
-    summary="Get the signed-in profile",
-    description="Sozlamalar reads this for the profile card.",
+    summary="Profil ma'lumoti",
+    description="Sozlamalar ekranidagi profil kartasi shu yo'ldan o'qiydi.",
 )
 async def get_me(user: CurrentUser, service: UserServiceDep) -> UserRead:
     return await service.get_profile(user.id)
@@ -40,8 +40,8 @@ async def get_me(user: CurrentUser, service: UserServiceDep) -> UserRead:
     "/me",
     response_model=UserRead,
     operation_id="users_update_me",
-    summary="Update the profile",
-    description="A body with no fields set is rejected rather than silently doing nothing.",
+    summary="Profilni tahrirlash",
+    description="Bo'sh so'rov rad etiladi — jimgina hech narsa qilmaslik o'rniga.",
 )
 async def update_me(
     payload: UserProfileUpdate, user: CurrentUser, service: UserServiceDep
@@ -54,8 +54,8 @@ async def update_me(
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
     operation_id="users_delete_me",
-    summary="Delete the account",
-    description="Akkauntni o'chirish. Soft delete: bookings and payments survive for accounting.",
+    summary="Akkauntni o'chirish",
+    description="Yumshoq o'chirish: bronlar va to'lovlar hisobot uchun saqlanib qoladi.",
 )
 async def delete_me(user: CurrentUser, service: UserServiceDep) -> None:
     await service.delete_account(user.id)
@@ -65,8 +65,8 @@ async def delete_me(user: CurrentUser, service: UserServiceDep) -> None:
     "/me/devices",
     response_model=list[DeviceRead],
     operation_id="users_list_devices",
-    summary="List registered devices",
-    description="Devices that may receive push notifications.",
+    summary="Qurilmalar ro'yxati",
+    description="Bildirishnoma yuborilishi mumkin bo'lgan qurilmalar.",
 )
 async def list_devices(user: CurrentUser, service: DeviceServiceDep) -> Sequence[DeviceRead]:
     return await service.list_for_user(user.id)
@@ -77,8 +77,8 @@ async def list_devices(user: CurrentUser, service: DeviceServiceDep) -> Sequence
     response_model=DeviceRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="users_register_device",
-    summary="Register a device",
-    description="Re-registering the same device uuid updates its push token in place.",
+    summary="Qurilmani ro'yxatga olish",
+    description="Bir xil `device_uuid` qayta yuborilsa, push token o'rnida yangilanadi.",
 )
 async def register_device(
     payload: DeviceCreate, user: CurrentUser, service: DeviceServiceDep
@@ -90,8 +90,8 @@ async def register_device(
     "/me/friends",
     response_model=list[UserListItem],
     operation_id="users_list_friends",
-    summary="List accepted friends",
-    description="The other party of every accepted friendship, in either direction.",
+    summary="Do'stlar ro'yxati",
+    description="Qabul qilingan har bir do'stlikning ikkinchi tomoni.",
 )
 async def list_friends(user: CurrentUser, service: FriendshipServiceDep) -> Sequence[UserListItem]:
     return await service.list_friends(user.id)
@@ -101,8 +101,8 @@ async def list_friends(user: CurrentUser, service: FriendshipServiceDep) -> Sequ
     "/me/friend-requests",
     response_model=list[FriendshipRead],
     operation_id="users_list_friend_requests",
-    summary="List incoming friend requests",
-    description="Requests awaiting an answer from the signed-in user.",
+    summary="Kelgan so'rovlar",
+    description="Kirgan foydalanuvchidan javob kutayotgan do'stlik so'rovlari.",
 )
 async def list_friend_requests(
     user: CurrentUser, service: FriendshipServiceDep
@@ -115,8 +115,8 @@ async def list_friend_requests(
     response_model=FriendshipRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="users_request_friend",
-    summary="Send a friend request",
-    description="Backs the Add friends button on the profile screen.",
+    summary="Do'stlik so'rovi yuborish",
+    description="Profil ekranidagi Do'st qo'shish tugmasi uchun.",
 )
 async def request_friend(
     payload: FriendshipCreate, user: CurrentUser, service: FriendshipServiceDep
@@ -128,8 +128,8 @@ async def request_friend(
     "/me/friends/{friendship_id}/accept",
     response_model=FriendshipRead,
     operation_id="users_accept_friend",
-    summary="Answer a friend request",
-    description="Only the addressee may answer.",
+    summary="So'rovga javob berish",
+    description="Faqat so'rov yuborilgan foydalanuvchi javob bera oladi.",
 )
 async def accept_friend(
     payload: FriendshipRespond,
@@ -144,8 +144,8 @@ async def accept_friend(
     "/me/recent-locations",
     response_model=list[UserAddressRead],
     operation_id="users_list_recent_locations",
-    summary="List recent addresses",
-    description="Oxirgi manzillar, newest first, capped at ten.",
+    summary="Oxirgi manzillar",
+    description="Eng yangisidan boshlab, ko'pi bilan o'nta.",
 )
 async def list_recent_locations(
     user: CurrentUser, session: SessionDep
@@ -158,8 +158,8 @@ async def list_recent_locations(
     response_model=UserAddressRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="users_remember_location",
-    summary="Remember an address",
-    description="Re-picking a district moves the existing entry up rather than duplicating it.",
+    summary="Manzilni saqlash",
+    description="Bir tuman qayta tanlansa, mavjud yozuv nusxalanmay yuqoriga ko'chadi.",
 )
 async def remember_location(
     payload: UserAddressCreate, user: CurrentUser, session: SessionDep

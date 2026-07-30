@@ -20,8 +20,8 @@ router = APIRouter(prefix="/v1/reviews", tags=["reviews"])
     response_model=ReviewRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="reviews_create",
-    summary="Review a completed visit",
-    description="Only the guest who made the booking, and only once per booking.",
+    summary="Sharh qoldirish",
+    description="Faqat bron qilgan mijoz va har bron uchun faqat bir marta.",
 )
 async def create_review(
     payload: ReviewCreate, user: CurrentUser, session: SessionDep
@@ -33,8 +33,8 @@ async def create_review(
     "/venue/{venue_id}",
     response_model=Page[ReviewListItem],
     operation_id="reviews_list_for_venue",
-    summary="Reviews for a venue",
-    description="Published reviews with their author and photos.",
+    summary="Muassasa sharhlari",
+    description="Chop etilgan sharhlar, muallifi va suratlari bilan.",
 )
 async def list_for_venue(
     session: SessionDep,
@@ -50,8 +50,10 @@ async def list_for_venue(
     "/venue/{venue_id}/aggregate",
     response_model=ReviewAggregateRead,
     operation_id="reviews_aggregate_for_venue",
-    summary="Rating summary",
-    description="Average and count, the source the denormalized venue columns come from.",
+    summary="Reyting xulosasi",
+    description=(
+        "O'rtacha baho va sharhlar soni — muassasa kartasidagi reyting shu yerdan hisoblanadi."
+    ),
 )
 async def aggregate_for_venue(
     session: SessionDep, venue_id: Annotated[int, Path(ge=1)]

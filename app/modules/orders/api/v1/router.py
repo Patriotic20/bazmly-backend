@@ -33,8 +33,8 @@ router = APIRouter(prefix="/v1/venue/orders", tags=["venue:orders"])
     "/table-board",
     response_model=list[TableBoardRow],
     operation_id="venue_orders_table_board",
-    summary="Stollar board",
-    description="Every active table with its live check, or none. Free tables are included.",
+    summary="Stollar",
+    description="Har bir aktiv stol va uning ochiq cheki. Bo'sh stollar ham qaytariladi.",
 )
 async def table_board(
     user: CurrentUser,
@@ -49,8 +49,8 @@ async def table_board(
     "/kitchen-queue",
     response_model=list[KitchenQueueItem],
     operation_id="venue_orders_kitchen_queue",
-    summary="Kitchen queue",
-    description="Oshpaz's dish queue, oldest first, with the table number to call out.",
+    summary="Oshxona navbati",
+    description="Oshpaz uchun taomlar navbati, eng eskisidan, stol raqami bilan.",
 )
 async def kitchen_queue(
     user: CurrentUser,
@@ -64,8 +64,8 @@ async def kitchen_queue(
     "",
     response_model=list[OrderListItem],
     operation_id="venue_orders_list",
-    summary="List checks",
-    description="Buyurtmalar for today's business date, filtered by status chips.",
+    summary="Cheklar ro'yxati",
+    description="Bugungi ish kuni uchun Buyurtmalar, status bo'yicha filtrlanadi.",
 )
 async def list_orders(
     user: CurrentUser,
@@ -81,8 +81,8 @@ async def list_orders(
     response_model=OrderRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_orders_open_table",
-    summary="Open a table",
-    description="Two waiters tapping the same table produce one check and one 409.",
+    summary="Stol ochish",
+    description="Bir stolni ikki ofitsant ochsa, bitta chek va bitta 409 hosil bo'ladi.",
     dependencies=[require_permission("orders.open")],
 )
 async def open_table(
@@ -98,8 +98,8 @@ async def open_table(
     "/{order_id}",
     response_model=OrderDetailRead,
     operation_id="venue_orders_get_detail",
-    summary="Check detail",
-    description="Items, payments and the elapsed timer, computed at read.",
+    summary="Chek ma'lumoti",
+    description="Taomlar, to'lovlar va o'tgan vaqt — o'tgan vaqt o'qish paytida hisoblanadi.",
 )
 async def get_detail(
     user: CurrentUser,
@@ -115,8 +115,8 @@ async def get_detail(
     response_model=OrderDetailRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_orders_add_items",
-    summary="Add items to a check",
-    description="Qo'shish. Prices and names are snapshotted at insert.",
+    summary="Chekka taom qo'shish",
+    description="Qo'shish. Narx va nom qo'shilgan paytda saqlab qolinadi.",
     dependencies=[require_permission("orders.add_items")],
 )
 async def add_items(
@@ -135,8 +135,8 @@ async def add_items(
     response_model=OrderPaymentRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_orders_add_payment",
-    summary="Record a payment",
-    description="Split payments are several rows. Cash is a valid method.",
+    summary="To'lovni qayd etish",
+    description="Bo'lib to'lash bir necha qator bo'ladi. Naqd pul ham qabul qilinadi.",
     dependencies=[require_permission("orders.close")],
 )
 async def add_payment(
@@ -153,8 +153,8 @@ async def add_payment(
     "/{order_id}/close",
     response_model=ReceiptRead,
     operation_id="venue_orders_close",
-    summary="Close a check and print",
-    description="Yakunlash. Refused with 422 until payments cover the total.",
+    summary="Yakunlash va chek chiqarish",
+    description="Yakunlash. To'lovlar summani qoplamaguncha 422 qaytariladi.",
     dependencies=[require_permission("orders.close")],
 )
 async def close_order(
@@ -170,8 +170,8 @@ async def close_order(
     "/{order_id}/cancel",
     response_model=OrderRead,
     operation_id="venue_orders_cancel",
-    summary="Cancel a check",
-    description="Voids an open check and records who did it.",
+    summary="Chekni bekor qilish",
+    description="Ochiq chekni bekor qiladi va kim bekor qilganini yozib qo'yadi.",
     dependencies=[require_permission("orders.close")],
 )
 async def cancel_order(
@@ -188,8 +188,8 @@ async def cancel_order(
     "/{order_id}/receipt",
     response_model=ReceiptRead,
     operation_id="venue_orders_get_receipt",
-    summary="Get the receipt",
-    description="The frozen payload, identical to what was printed.",
+    summary="Chekni olish",
+    description="Chop etilgan chekning o'zgarmas nusxasi.",
 )
 async def get_receipt(
     user: CurrentUser,
@@ -203,8 +203,8 @@ async def get_receipt(
     "/{order_id}/receipt/reprint",
     response_model=ReceiptRead,
     operation_id="venue_orders_reprint_receipt",
-    summary="Reprint the receipt",
-    description="Increments the counter and changes nothing else.",
+    summary="Chekni qayta chiqarish",
+    description="Faqat hisoblagichni oshiradi, boshqa hech narsani o'zgartirmaydi.",
     dependencies=[require_permission("orders.close")],
 )
 async def reprint_receipt(

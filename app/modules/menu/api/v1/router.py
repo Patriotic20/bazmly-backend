@@ -29,8 +29,8 @@ router = APIRouter(prefix="/v1/venue/menu", tags=["venue:menu"])
     "/categories",
     response_model=list[MenuCategoryRead],
     operation_id="venue_menu_list_categories",
-    summary="List categories",
-    description="Chips with a live item count — the count is never a stored column.",
+    summary="Kategoriyalar ro'yxati",
+    description="Har bir kategoriya yonidagi son jonli hisoblanadi, saqlanmaydi.",
 )
 async def list_categories(
     user: CurrentUser,
@@ -47,8 +47,8 @@ async def list_categories(
     response_model=MenuCategoryRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_menu_create_category",
-    summary="Create a category",
-    description="Categories belong to the chain, not to one filial.",
+    summary="Kategoriya yaratish",
+    description="Kategoriyalar tarmoqqa tegishli, bitta filialga emas.",
     dependencies=[require_permission("menu.edit")],
 )
 async def create_category(
@@ -65,8 +65,8 @@ async def create_category(
     "/items",
     response_model=list[MenuItemListItem],
     operation_id="venue_menu_list_items",
-    summary="List dishes for a branch",
-    description="Only what this filial serves, at its effective price.",
+    summary="Filial taomlari",
+    description="Faqat shu filial taqdim etadigan taomlar, amaldagi narxi bilan.",
 )
 async def list_items(
     user: CurrentUser,
@@ -83,8 +83,11 @@ async def list_items(
     response_model=MenuItemRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_menu_create_item",
-    summary="Create a dish",
-    description="Menyu builder steps 1-2. Variants replace the base price, never sit beside it.",
+    summary="Taom yaratish",
+    description=(
+        "Menyu konstruktori, 1-2 bosqich. Variantlar asosiy narx o'rnini "
+        "egallaydi, u bilan birga turmaydi."
+    ),
     dependencies=[require_permission("menu.edit")],
 )
 async def create_item(
@@ -102,8 +105,10 @@ async def create_item(
     "/items/{item_id}",
     response_model=MenuItemRead,
     operation_id="venue_menu_get_item",
-    summary="Get a dish",
-    description="Absent from a filial that does not serve it, never priced from the catalogue.",
+    summary="Taom ma'lumoti",
+    description=(
+        "Taom taqdim etilmaydigan filialda umuman ko'rinmaydi va katalog narxi bilan sotilmaydi."
+    ),
 )
 async def get_item(
     user: CurrentUser,
@@ -120,8 +125,10 @@ async def get_item(
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
     operation_id="venue_menu_set_item_branches",
-    summary="Set which branches serve a dish",
-    description="Builder step 3. Unticked filials lose their row, so the dish disappears there.",
+    summary="Taomni filiallarga biriktirish",
+    description=(
+        "Konstruktorning 3-bosqichi. Belgilanmagan filialdan taom butunlay olib tashlanadi."
+    ),
     dependencies=[require_permission("menu.publish")],
 )
 async def set_item_branches(

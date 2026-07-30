@@ -23,8 +23,8 @@ router = APIRouter(prefix="/v1/venue/bookings", tags=["venue:bookings"])
     "",
     response_model=list[BookingRead],
     operation_id="venue_bookings_list_day",
-    summary="Day queue",
-    description="Kutilayotgan mijozlar for one filial on one date.",
+    summary="Kutilayotgan mijozlar",
+    description="Bitta filialning bitta kundagi bronlari.",
 )
 async def list_day(
     user: CurrentUser,
@@ -40,8 +40,11 @@ async def list_day(
     "/check-in",
     response_model=BookingRead,
     operation_id="venue_bookings_check_in",
-    summary="Check a guest in by QR",
-    description="Single use: a second scan is rejected. The scanner must work at this filial.",
+    summary="QR orqali qayd etish",
+    description=(
+        "Bir marta ishlatiladi: ikkinchi skan rad etiladi. Skanerlovchi shu "
+        "filialda ishlashi shart."
+    ),
     dependencies=[require_permission("bookings.confirm")],
 )
 async def check_in(
@@ -54,8 +57,8 @@ async def check_in(
     "/{booking_id}/check-out",
     response_model=SeatedSummary,
     operation_id="venue_bookings_check_out",
-    summary="Close a visit",
-    description="Writes seated_minutes once, from the real interval.",
+    summary="Tashrifni yakunlash",
+    description="`seated_minutes` haqiqiy vaqt oralig'idan bir marta yoziladi.",
     dependencies=[require_permission("bookings.confirm")],
 )
 async def check_out(
@@ -71,8 +74,8 @@ async def check_out(
     "/blocked-dates",
     response_model=BlockedDatesRead,
     operation_id="venue_bookings_blocked_dates",
-    summary="Dates already taken",
-    description="Days a hall event already owns at this filial.",
+    summary="Band kunlar",
+    description="Shu filialda to'yxona tadbiri egallagan kunlar.",
 )
 async def blocked_dates(
     user: CurrentUser,

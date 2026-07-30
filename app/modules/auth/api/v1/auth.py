@@ -23,8 +23,8 @@ router = APIRouter(prefix="/v1/auth", tags=["auth"])
     "/request-code",
     response_model=OtpRequested,
     operation_id="auth_request_code",
-    summary="Request an SMS confirmation code",
-    description="Sends a 6-digit code. Throttled to three requests per ten minutes.",
+    summary="Tasdiqlash kodini so'rash",
+    description="6 xonali kod yuboriladi. O'n daqiqada uch martadan ko'p so'rab bo'lmaydi.",
 )
 async def request_code(payload: OtpRequest, service: AuthServiceDep) -> OtpRequested:
     return await service.request_code(payload)
@@ -34,8 +34,11 @@ async def request_code(payload: OtpRequest, service: AuthServiceDep) -> OtpReque
     "/verify-code",
     response_model=TokenPair,
     operation_id="auth_verify_code",
-    summary="Verify a confirmation code",
-    description="Consumes the code and returns tokens. The account is created here, never earlier.",
+    summary="Tasdiqlash kodini tekshirish",
+    description=(
+        "Kod ishlatiladi va tokenlar qaytariladi. Akkaunt aynan shu bosqichda "
+        "yaratiladi, undan oldin emas."
+    ),
 )
 async def verify_code(payload: OtpVerify, service: AuthServiceDep) -> TokenPair:
     return with_access_token(await service.verify_code(payload))
@@ -45,8 +48,8 @@ async def verify_code(payload: OtpVerify, service: AuthServiceDep) -> TokenPair:
     "/complete-profile",
     response_model=UserRead,
     operation_id="auth_complete_profile",
-    summary="Set the name after verification",
-    description="Promotes a pending_profile account to active.",
+    summary="Profilni to'ldirish",
+    description="Ism kiritilgach, akkaunt `pending_profile` dan `active` ga o'tadi.",
 )
 async def complete_profile(
     payload: UserProfileUpdate, user: PendingUser, service: UserServiceDep
@@ -58,8 +61,11 @@ async def complete_profile(
     "/social/{provider}",
     response_model=TokenPair,
     operation_id="auth_social_login",
-    summary="Sign in with Apple or Google",
-    description="Links a new identity to an existing account when the email matches.",
+    summary="Apple yoki Google orqali kirish",
+    description=(
+        "Email mos kelsa, yangi identifikator mavjud akkauntga bog'lanadi — "
+        "ikkinchi akkaunt yaratilmaydi."
+    ),
 )
 async def social_login(
     provider: AuthProvider, payload: SocialLogin, service: AuthServiceDep
@@ -73,8 +79,8 @@ async def social_login(
     "/staff-login",
     response_model=TokenPair,
     operation_id="auth_staff_login",
-    summary="Sign in with an issued staff login",
-    description="Hodimlar sign in with a login and password, not a phone number.",
+    summary="Hodim sifatida kirish",
+    description="Hodimlar telefon raqami bilan emas, login va parol bilan kiradi.",
 )
 async def staff_login(payload: StaffLogin, service: AuthServiceDep) -> TokenPair:
     return with_access_token(await service.staff_login(payload))
@@ -84,8 +90,11 @@ async def staff_login(payload: StaffLogin, service: AuthServiceDep) -> TokenPair
     "/refresh",
     response_model=TokenPair,
     operation_id="auth_refresh",
-    summary="Rotate a refresh token",
-    description="Reusing a revoked token revokes every token for that user.",
+    summary="Tokenni yangilash",
+    description=(
+        "Bekor qilingan token qayta ishlatilsa, o'sha foydalanuvchining barcha "
+        "tokenlari bekor qilinadi."
+    ),
 )
 async def refresh(payload: RefreshRequest, service: AuthServiceDep) -> TokenPair:
     return with_access_token(await service.refresh(payload.refresh_token))
@@ -96,8 +105,8 @@ async def refresh(payload: RefreshRequest, service: AuthServiceDep) -> TokenPair
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
     operation_id="auth_logout",
-    summary="Sign out of this device",
-    description="Revokes the presented refresh token.",
+    summary="Chiqish",
+    description="Yuborilgan yangilash tokeni bekor qilinadi.",
 )
 async def logout(user: CurrentUser, service: AuthServiceDep) -> None:
     await service.logout(user.id)
@@ -108,8 +117,8 @@ async def logout(user: CurrentUser, service: AuthServiceDep) -> None:
     status_code=status.HTTP_204_NO_CONTENT,
     response_model=None,
     operation_id="auth_logout_all",
-    summary="Sign out everywhere",
-    description="Revokes every refresh token for the account.",
+    summary="Hamma qurilmadan chiqish",
+    description="Akkauntning barcha yangilash tokenlari bekor qilinadi.",
 )
 async def logout_all(user: CurrentUser, service: AuthServiceDep) -> None:
     await service.logout(user.id, all_devices=True)

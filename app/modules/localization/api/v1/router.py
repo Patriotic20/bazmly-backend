@@ -13,8 +13,8 @@ router = APIRouter(prefix="/v1/languages", tags=["localization"])
     "",
     response_model=list[LanguageRead],
     operation_id="localization_list_languages",
-    summary="List active languages",
-    description="Til sozlamalari offers exactly these.",
+    summary="Tillar ro'yxati",
+    description="Til sozlamalari ekranida aynan shu tillar taklif qilinadi.",
 )
 async def list_languages(session: SessionDep) -> Sequence[LanguageRead]:
     return await LanguageService(session).list_active()

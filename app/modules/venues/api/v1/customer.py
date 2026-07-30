@@ -35,8 +35,8 @@ router = APIRouter(prefix="/v1/venues", tags=["venues"])
     "/search",
     response_model=Page[VenueListItem],
     operation_id="venues_search",
-    summary="Search venues",
-    description="The home screen. Returns distance_m and is_open_now per card.",
+    summary="Muassasa qidirish",
+    description="Bosh ekran. Har bir karta uchun `distance_m` va `is_open_now` qaytaradi.",
 )
 async def search(
     params: Annotated[VenueSearchParams, Query()],
@@ -61,8 +61,8 @@ def _with_location(params: VenueSearchParams, location: ClientLocationDep) -> Ve
     "/{venue_id}",
     response_model=VenueDetailRead,
     operation_id="venues_get_detail",
-    summary="Venue detail",
-    description="Photos, amenities, types and working hours, plus is_open_now.",
+    summary="Muassasa ma'lumoti",
+    description="Suratlar, qulayliklar, turlar, ish vaqti va `is_open_now`.",
 )
 async def get_detail(
     language_id: LanguageId,
@@ -77,8 +77,10 @@ async def get_detail(
     "/{venue_id}/availability",
     response_model=BlockedDatesRead,
     operation_id="venues_get_availability",
-    summary="Dates already taken",
-    description="Greyed-out chips in the date picker: days a hall event already owns.",
+    summary="Band kunlar",
+    description=(
+        "Sana tanlashda kulrang ko'rinadigan kunlar: to'yxona tadbiri allaqachon egallagan sanalar."
+    ),
 )
 async def get_availability(
     session: SessionDep,
@@ -93,8 +95,10 @@ async def get_availability(
     "/{venue_id}/tables",
     response_model=list[AvailableTableRead],
     operation_id="venues_list_free_tables",
-    summary="Free tables for a window",
-    description="Excludes tables with an overlapping booking or a blocked slot.",
+    summary="Bo'sh stollar",
+    description=(
+        "Vaqti to'qnashadigan broni yoki yopilgan oralig'i bor stollar ro'yxatga kirmaydi."
+    ),
 )
 async def list_free_tables(
     session: SessionDep,
@@ -113,8 +117,8 @@ async def list_free_tables(
     "/{venue_id}/zones",
     response_model=list[VenueZoneRead],
     operation_id="venues_list_zones",
-    summary="List seating zones",
-    description="Ichkari, Tashqari. Umumiy is a client-side no-filter, never a row.",
+    summary="Zonalar ro'yxati",
+    description="Ichkari, Tashqari. Umumiy — bu filtrsiz ko'rinish, alohida zona emas.",
 )
 async def list_zones(
     language_id: LanguageId,
@@ -128,8 +132,8 @@ async def list_zones(
     "/{venue_id}/menu",
     response_model=list[MenuItemListItem],
     operation_id="venues_list_menu_items",
-    summary="Menu for a branch",
-    description="Only dishes this filial serves, priced with its branch override.",
+    summary="Filial menyusi",
+    description="Faqat shu filial taqdim etadigan taomlar, filial narxi bilan.",
 )
 async def list_menu_items(
     session: SessionDep,
@@ -144,8 +148,8 @@ async def list_menu_items(
     "/{venue_id}/services",
     response_model=list[VenueServiceRead],
     operation_id="venues_list_services",
-    summary="Additional services",
-    description="Qo'shimcha xizmatlar: dasturxon tuzash, raqqoslar, kartej and the rest.",
+    summary="Qo'shimcha xizmatlar",
+    description="Dasturxon tuzash, raqqoslar, kartej, video, qo'shiqchi va sahna.",
 )
 async def list_services(
     session: SessionDep,
@@ -160,8 +164,8 @@ async def list_services(
     "/{venue_id}/reviews",
     response_model=Page[ReviewListItem],
     operation_id="venues_list_reviews",
-    summary="Published reviews",
-    description="Verified reviews are those attached to a completed booking.",
+    summary="Sharhlar",
+    description="Tasdiqlangan sharhlar — yakunlangan bronga bog'langan sharhlar.",
 )
 async def list_reviews(
     session: SessionDep,

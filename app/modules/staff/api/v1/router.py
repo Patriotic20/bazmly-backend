@@ -24,8 +24,8 @@ router = APIRouter(prefix="/v1/venue/staff", tags=["venue:staff"])
     "",
     response_model=list[VenueStaffListItem],
     operation_id="venue_staff_list",
-    summary="List employees",
-    description="Hodimlar, filtered by filial, role and active status.",
+    summary="Hodimlar ro'yxati",
+    description="Filial, rol va faollik holati bo'yicha filtrlanadi.",
 )
 async def list_staff(
     user: CurrentUser,
@@ -43,8 +43,8 @@ async def list_staff(
     "/counts",
     response_model=StaffCountsRead,
     operation_id="venue_staff_counts",
-    summary="Employee counters",
-    description="Jami / Aktiv / Noaktiv on the Hodimlar header.",
+    summary="Hodim hisoblagichlari",
+    description="Hodimlar sarlavhasidagi Jami / Aktiv / Noaktiv.",
 )
 async def staff_counts(
     user: CurrentUser,
@@ -58,8 +58,8 @@ async def staff_counts(
     "/roles",
     response_model=list[StaffRoleRead],
     operation_id="venue_staff_list_roles",
-    summary="List roles",
-    description="Egasi, Admin, Menendjer, Ofitsant, Oshpaz and the rest.",
+    summary="Rollar ro'yxati",
+    description="Egasi, Admin, Menendjer, Ofitsant, Oshpaz va boshqalar.",
 )
 async def list_roles(
     user: CurrentUser,
@@ -75,8 +75,10 @@ async def list_roles(
     response_model=StaffInvitationRead,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_staff_invite",
-    summary="Invite an employee",
-    description="Xodim qo'shish. The temporary password is sent by SMS once and never returned.",
+    summary="Hodim qo'shish",
+    description=(
+        "Vaqtinchalik parol SMS orqali bir marta yuboriladi va hech qachon javobda qaytarilmaydi."
+    ),
     dependencies=[require_permission("staff.manage")],
 )
 async def invite(
@@ -92,8 +94,8 @@ async def invite(
     "/invitations/accept",
     response_model=VenueStaffRead,
     operation_id="venue_staff_accept_invitation",
-    summary="Accept an invitation",
-    description="Redeems the temporary password and sets a chosen one in the same step.",
+    summary="Taklifnomani qabul qilish",
+    description="Vaqtinchalik parol ishlatiladi va shu bosqichda yangi parol o'rnatiladi.",
 )
 async def accept_invitation(
     payload: InvitationAccept,
@@ -107,8 +109,8 @@ async def accept_invitation(
     "/{staff_id}/active",
     response_model=VenueStaffRead,
     operation_id="venue_staff_set_active",
-    summary="Activate or deactivate",
-    description="The Active Status toggle on a Hodimlar card.",
+    summary="Faollikni o'zgartirish",
+    description="Hodimlar kartasidagi faollik tugmasi.",
     dependencies=[require_permission("staff.manage")],
 )
 async def set_active(

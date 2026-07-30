@@ -15,8 +15,8 @@ router = APIRouter(prefix="/v1/venue/groups", tags=["venue:groups"])
     "/me",
     response_model=VenueGroupRead,
     operation_id="venue_groups_get_mine",
-    summary="My chain",
-    description="The venue group owned by the signed-in account.",
+    summary="Mening tarmog'im",
+    description="Kirgan akkauntga tegishli tarmoq.",
 )
 async def get_mine(user: CurrentUser, session: SessionDep) -> VenueGroupRead:
     return await VenueGroupService(session).get_for_owner(user.id)
@@ -26,8 +26,8 @@ async def get_mine(user: CurrentUser, session: SessionDep) -> VenueGroupRead:
     "/{group_id}/branches",
     response_model=VenueGroupWithBranchesRead,
     operation_id="venue_groups_get_with_branches",
-    summary="Chain with its branches",
-    description="The dashboard header name plus every filial under it.",
+    summary="Tarmoq va filiallari",
+    description="Boshqaruv panelidagi tarmoq nomi va uning barcha filiallari.",
 )
 async def get_with_branches(
     user: CurrentUser, language_id: LanguageId, session: SessionDep, group_id: int
@@ -39,11 +39,11 @@ async def get_with_branches(
     "/{group_id}",
     response_model=VenueGroupRead,
     operation_id="venue_groups_update",
-    summary="Edit the chain",
+    summary="Tarmoqni tahrirlash",
     description=(
-        "Logo and default currency. The logo lives here, never on a filial. "
-        "Pass venue_id for the permission check — a group-scoped owner satisfies it "
-        "at any branch in the chain."
+        "Logotip va asosiy valyuta. Logotip aynan shu yerda saqlanadi, filialda "
+        "emas. Ruxsatni tekshirish uchun `venue_id` yuboriladi — tarmoq darajasidagi "
+        "egasi tarmoqning istalgan filiali uchun bu tekshiruvdan o'tadi."
     ),
     dependencies=[require_permission("settings.edit")],
 )
