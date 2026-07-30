@@ -27,8 +27,7 @@ class ReviewPhotoRead(ReadSchema):
 
 
 class ReviewListItem(ReadSchema):
-    """The "Verified" badge is `is_verified`, which is true when the review is
-    attached to a booking."""
+    """Tasdiqlangan belgisi `is_verified` — sharh bronga bog'langanini bildiradi."""
 
     id: int
     rating: int
@@ -52,8 +51,7 @@ class ReviewRead(ReadSchema):
 
 
 class ReviewAggregateRead(ReadSchema):
-    """Average and count, the source the denormalized venue columns are recomputed
-    from."""
+    """O'rtacha baho va sharhlar soni — muassasa reytingi shu yerdan qayta hisoblanadi."""
 
     venue_id: int
     average: Decimal

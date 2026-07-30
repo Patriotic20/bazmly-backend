@@ -21,6 +21,6 @@ class FriendshipRead(ReadSchema):
 
 
 class FriendRead(ReadSchema):
-    """The other party of an accepted friendship."""
+    """Qabul qilingan do'stlikning ikkinchi tomoni."""
 
     user: UserListItem

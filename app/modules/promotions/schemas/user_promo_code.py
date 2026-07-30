@@ -5,10 +5,10 @@ from app.modules.promotions.enums import UserPromoCodeSource, UserPromoCodeStatu
 
 
 class UserPromoCodeRead(ReadSchema):
-    """A Voucher tab card.
+    """Promokodlar bo'limidagi karta.
 
-    `seconds_remaining` is `expires_at - now` computed by the service at read. The
-    countdown is never stored, because a stored countdown is wrong one second later.
+    `seconds_remaining` o'qish paytida hisoblanadi. Saqlangan sanoq bir
+    sekunddan keyin noto'g'ri bo'lib qoladi.
     """
 
     id: int

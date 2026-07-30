@@ -12,8 +12,10 @@ class ConversationCreate(BaseModel):
 
 
 class ConversationListItem(ReadSchema):
-    """An inbox row: the thread, its last message and what is unread for the
-    reader — the sender never counts their own messages as unread."""
+    """Suhbatlar ro'yxatidagi qator: suhbat, oxirgi xabar va o'qilmaganlar soni.
+
+    Yuboruvchining o'z xabarlari o'qilmagan deb hisoblanmaydi.
+    """
 
     id: int
     venue_id: int

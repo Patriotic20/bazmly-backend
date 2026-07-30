@@ -15,8 +15,7 @@ class MenuCategoryUpdate(UpdateSchema):
 
 
 class MenuCategoryRead(ReadSchema):
-    """`item_count` is a live COUNT, filled by the service — the chip label
-    ("5" on Steyklar) is never a stored column."""
+    """`item_count` jonli hisoblanadi — kategoriya yonidagi son saqlanmaydi."""
 
     id: int
     name: str

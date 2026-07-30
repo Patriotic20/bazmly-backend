@@ -2,7 +2,7 @@ from app.core.schemas import ReadSchema
 
 
 class VenueTypeRead(ReadSchema):
-    """`name` is already resolved for the requested language."""
+    """`name` so'ralgan til uchun allaqachon tanlangan holda qaytariladi."""
 
     id: int
     slug: str

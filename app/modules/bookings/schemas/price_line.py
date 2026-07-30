@@ -3,7 +3,7 @@ from app.modules.bookings.enums import PriceLineType
 
 
 class PriceLineRead(ReadSchema):
-    """One row of the Detailed Price Report, frozen at confirmation."""
+    """Batafsil narx hisobotining bir qatori, tasdiqlash paytida saqlab qolinadi."""
 
     id: int
     sort_order: int

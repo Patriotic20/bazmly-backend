@@ -17,7 +17,7 @@ class MenuItemVariantUpdate(UpdateSchema):
 
 
 class MenuItemVariantRead(ReadSchema):
-    """Kichik / O'rtacha / Katta. `effective_price` is the branch-resolved price."""
+    """Kichik / O'rtacha / Katta. `effective_price` — filial narxi bilan hisoblangan qiymat."""
 
     id: int
     name: str

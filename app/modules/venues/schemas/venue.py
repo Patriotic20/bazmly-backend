@@ -57,11 +57,11 @@ class VenueUpdate(UpdateSchema):
 
 
 class VenueListItem(ReadSchema):
-    """One home-screen or Filiallar card.
+    """Bosh ekran yoki Filiallar kartasi.
 
-    `distance_m` and `is_open_now` are computed per row by the database and filled
-    by the service. `is_open_now` is the clock; `status` is administrative — the
-    card shows both in one pill, the API keeps them apart.
+    `distance_m` va `is_open_now` har bir qator uchun ma'lumotlar bazasida
+    hisoblanadi. `is_open_now` — soat bo'yicha holat, `status` esa ma'muriy
+    holat. Kartada ikkalasi bitta belgida ko'rinadi, API da esa ajratilgan.
     """
 
     id: int
@@ -122,7 +122,7 @@ class VenueWorkingHoursRead(ReadSchema):
 
 
 class VenueDetailRead(ReadSchema):
-    """The detail screen, assembled by the service from explicit reads."""
+    """Muassasa sahifasi — server tomonidan alohida so'rovlardan yig'iladi."""
 
     venue: VenueRead
     photos: list[VenuePhotoRead]
@@ -133,7 +133,7 @@ class VenueDetailRead(ReadSchema):
 
 
 class VenueSearchParams(BaseModel):
-    """The home-screen filter set, as one object rather than fifteen arguments."""
+    """Bosh ekran filtrlari — o'n beshta alohida parametr o'rniga bitta obyekt."""
 
     query: str | None = Field(default=None, max_length=255)
     venue_type_ids: list[int] | None = None
@@ -151,7 +151,7 @@ class VenueSearchParams(BaseModel):
 
 
 class VenueStatusCountsRead(ReadSchema):
-    """Jami / Aktiv / Yopiq on the Filiallar header."""
+    """Filiallar sarlavhasidagi Jami / Aktiv / Yopiq."""
 
     total: int
     active: int

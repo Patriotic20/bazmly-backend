@@ -9,10 +9,10 @@ class BookingItemCreate(BaseModel):
 
 
 class BookingItemRead(ReadSchema):
-    """`name_snapshot` and `unit_price` are frozen at confirmation.
+    """`name_snapshot` va `unit_price` tasdiqlash paytida saqlab qolinadi.
 
-    An old ticket must never be rebuilt by joining to live `menu_items` — prices
-    and names change, and the receipt has to keep saying what was agreed.
+    Eski chekni jonli `menu_items` bilan qayta qurish mumkin emas — narx va nom
+    o'zgaradi, chek esa kelishilgan qiymatni ko'rsatib turishi kerak.
     """
 
     id: int

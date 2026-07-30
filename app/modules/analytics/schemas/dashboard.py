@@ -8,7 +8,7 @@ from app.modules.analytics.schemas.venue_daily_stats import (
 
 
 class WeekdayBar(ReadSchema):
-    """One bar of the weekday chart."""
+    """Haftalik grafikning bir ustuni."""
 
     weekday: int
     bookings_count: int
@@ -16,11 +16,11 @@ class WeekdayBar(ReadSchema):
 
 
 class DashboardRead(ReadSchema):
-    """The owner-home aggregate.
+    """Boshqaruv panelining yig'ma ma'lumoti.
 
-    `group_name` is the chain; `is_open_now` and `queue_count` belong to the
-    branch the dashboard is scoped to. Open question 6 in Part 2 notes that the
-    screen mixes the two, so both carry an explicit id here.
+    `group_name` tarmoqqa tegishli; `is_open_now` va `queue_count` esa panel
+    ko'rsatayotgan filialga. Shu sababli ikkalasining identifikatori ham
+    alohida qaytariladi.
     """
 
     group_id: int

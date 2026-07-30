@@ -29,11 +29,10 @@ class StatsTotalsRead(ReadSchema):
 
 
 class PeriodComparisonRead(ReadSchema):
-    """Both totals plus the delta the service computed at read.
+    """Ikkala davr jami va o'qish paytida hisoblangan farq.
 
-    The percentage is never stored: "+12%" is this period against the previous
-    one, and storing it means storing it wrong the moment a late cancellation
-    lands.
+    Foiz hech qachon saqlanmaydi: kechikkan bekor qilish kelishi bilan
+    saqlangan qiymat noto'g'ri bo'lib qoladi.
     """
 
     current: StatsTotalsRead

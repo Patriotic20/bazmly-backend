@@ -14,7 +14,7 @@ class UserAddressCreate(BaseModel):
 
 
 class UserAddressRead(ReadSchema):
-    """Backs "Oxirgi manzillar"."""
+    """Oxirgi manzillar uchun."""
 
     id: int
     district_id: int

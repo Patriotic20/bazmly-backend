@@ -10,8 +10,7 @@ class VenueZoneCreate(BaseModel):
 
 
 class VenueZoneRead(ReadSchema):
-    """ "Umumiy" is a UI shortcut meaning no zone filter — never a row, so never
-    part of this list."""
+    """Umumiy — bu filtrsiz ko'rinish, alohida zona emas, shuning uchun bu ro'yxatda yo'q."""
 
     id: int
     slug: str

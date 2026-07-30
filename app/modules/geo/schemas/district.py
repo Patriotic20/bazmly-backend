@@ -4,7 +4,7 @@ from app.core.schemas import ReadSchema
 
 
 class DistrictRead(ReadSchema):
-    """Holds both tuman and shahar rows — one level, one table, one schema."""
+    """Tuman va shahar bir darajada — bitta jadval, bitta sxema."""
 
     id: int
     region_id: int

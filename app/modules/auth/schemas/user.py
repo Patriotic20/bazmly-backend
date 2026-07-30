@@ -7,10 +7,10 @@ from app.modules.auth.enums import UserRole, UserStatus, UserTheme
 
 
 class UserCreate(BaseModel):
-    """Only reached after a verification code has been consumed.
+    """Faqat tasdiqlash kodi ishlatilgandan keyin yaratiladi.
 
-    There is no password here: customers authenticate by OTP, and staff
-    credentials are issued by an invitation, never chosen at signup.
+    Bu yerda parol yo'q: mijozlar SMS kod bilan kiradi, hodimlarga esa parol
+    taklifnoma orqali beriladi — ro'yxatdan o'tishda tanlanmaydi.
     """
 
     first_name: str = Field(min_length=1, max_length=100)
@@ -22,7 +22,7 @@ class UserCreate(BaseModel):
 
 
 class UserProfileUpdate(UpdateSchema):
-    """Setting a name is what promotes `pending_profile` to `active`."""
+    """Ism kiritilishi akkauntni `pending_profile` dan `active` ga o'tkazadi."""
 
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -34,7 +34,7 @@ class UserProfileUpdate(UpdateSchema):
 
 
 class UserRead(ReadSchema):
-    """No `password_hash`, and no `login` — a staff login is a credential."""
+    """Profil ma'lumoti. `password_hash` va `login` qaytarilmaydi."""
 
     id: int
     first_name: str
@@ -52,7 +52,7 @@ class UserRead(ReadSchema):
 
 
 class UserListItem(ReadSchema):
-    """The shape a staff list or a friend list needs — no contact details."""
+    """Hodimlar yoki do'stlar ro'yxati uchun qisqa ko'rinish — aloqa ma'lumotisiz."""
 
     id: int
     first_name: str

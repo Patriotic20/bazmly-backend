@@ -14,8 +14,7 @@ class DeviceCreate(BaseModel):
 
 
 class DeviceRead(ReadSchema):
-    """`push_token` is a delivery address, not a secret, but it is still omitted
-    from list payloads that a client does not need it in."""
+    """Qurilma ma'lumoti. `push_token` ro'yxatlarda qaytarilmaydi."""
 
     id: int
     device_uuid: str

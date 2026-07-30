@@ -7,10 +7,10 @@ from app.modules.payments.enums import CardBrand
 
 
 class PaymentCardCreate(BaseModel):
-    """The PAN never reaches this API.
+    """Karta raqami bu API ga hech qachon kelmaydi.
 
-    The client sends the number and expiry straight to the provider and posts back
-    only the returned token, so nothing here can leak a card number.
+    Mijoz raqam va muddatni to'g'ridan-to'g'ri provayderga yuboradi va faqat
+    qaytgan tokenni bu yerga joylaydi.
     """
 
     provider: str = Field(min_length=1, max_length=50)
@@ -24,7 +24,7 @@ class PaymentCardCreate(BaseModel):
 
 
 class PaymentCardRead(ReadSchema):
-    """No `provider_token` — it is a bearer credential for charging the card."""
+    """Saqlangan karta. `provider_token` qaytarilmaydi — u pul yechish kaliti."""
 
     id: int
     brand: CardBrand

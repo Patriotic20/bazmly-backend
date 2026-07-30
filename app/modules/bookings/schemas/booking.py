@@ -15,11 +15,11 @@ from app.modules.bookings.schemas.price_line import PriceLineRead
 
 
 class _BookingCreateBase(BaseModel):
-    """Fields shared by both kinds.
+    """Ikki xil bron uchun umumiy maydonlar.
 
-    `booking_date` is a `date` and the times are `time`, never a combined
-    `datetime`: 11:00 at the venue must stay 11:00 regardless of the reader's
-    timezone. UTC applies only to audit stamps.
+    `booking_date` — sana, vaqtlar esa `time`. Ular hech qachon bitta
+    `datetime` ga birlashtirilmaydi: muassasadagi 11:00 o'quvchining vaqt
+    mintaqasidan qat'i nazar 11:00 bo'lib qolishi kerak.
     """
 
     venue_id: int
@@ -41,15 +41,16 @@ class _BookingCreateBase(BaseModel):
 
 
 class TableReservationCreate(_BookingCreateBase):
-    """Restaurant reservation. Carries a table and an optional menu pre-order."""
+    """Restoran stoli broni. Stol va ixtiyoriy menyu buyurtmasi bilan."""
 
     table_id: int
     items: list[BookingItemCreate] = Field(default_factory=list)
 
 
 class HallEventCreate(_BookingCreateBase):
-    """To'yxona event. The guest tier is resolved from `guests_count` by the
-    service, so the client never picks a price band itself."""
+    """To'yxona tadbiri. Narx bosqichi `guests_count` asosida serverda aniqlanadi,
+    mijoz o'zi tanlamaydi.
+    """
 
     venue_service_ids: list[int] = Field(default_factory=list)
 
@@ -66,8 +67,11 @@ class BookingCancel(BaseModel):
 
 
 class BookingListItem(ReadSchema):
-    """A Joylar card. Deliberately no `qr_token` — a list is rendered in places a
-    screenshot is cheap, and the token is a bearer credential for check-in."""
+    """Joylar bo'limidagi karta.
+
+    `qr_token` ataylab qaytarilmaydi — ro'yxatni skrinshot qilish oson, token
+    esa kelishni qayd etish uchun kalit.
+    """
 
     id: int
     venue_id: int
@@ -84,7 +88,7 @@ class BookingListItem(ReadSchema):
 
 
 class BookingRead(ReadSchema):
-    """The venue-side view of a booking. Still no `qr_token`."""
+    """Bronning muassasa tomonidan ko'riniladigan ma'lumoti. `qr_token` bu yerda ham yo'q."""
 
     id: int
     user_id: int
@@ -117,11 +121,10 @@ class BookingRead(ReadSchema):
 
 
 class BookingOwnerDetail(ReadSchema):
-    """The booking owner's own detail response — the only schema carrying
-    `qr_token`.
+    """Mijozning o'z broni — `qr_token` faqat shu javobda qaytariladi.
 
-    The token is shown *by* the customer *to* the venue and is single-use. It
-    never appears in a list, and never in any venue-side response.
+    Tokenni mijoz muassasaga ko'rsatadi va u bir marta ishlatiladi. Hech qanday
+    ro'yxatda va muassasa tomonidagi javoblarda ko'rinmaydi.
     """
 
     booking: BookingRead
@@ -139,7 +142,7 @@ class BookingSearchParams(BaseModel):
 
 
 class PriceQuote(ReadSchema):
-    """What the wizard shows before anything is written."""
+    """Bron yozilishidan oldin ko'rsatiladigan narx hisobi."""
 
     subtotal: Money
     discount_amount: Money
@@ -150,7 +153,7 @@ class PriceQuote(ReadSchema):
 
 
 class BlockedDatesRead(ReadSchema):
-    """The greyed-out chips in the date picker."""
+    """Sana tanlashda kulrang ko'rinadigan band kunlar."""
 
     venue_id: int
     dates: list[date]

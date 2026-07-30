@@ -20,8 +20,9 @@ class OrderItemUpdate(UpdateSchema):
 
 
 class OrderItemRead(ReadSchema):
-    """Item-level status exists because Oshpaz is a role: the kitchen queue is a
-    per-dish question, not a per-check one."""
+    """Har bir taomning alohida holati bor, chunki Oshpaz alohida rol: oshxona navbati
+    chek emas, taom bo'yicha tuziladi.
+    """
 
     id: int
     menu_item_id: int
@@ -39,7 +40,7 @@ class OrderItemRead(ReadSchema):
 
 
 class KitchenQueueItem(ReadSchema):
-    """Oshpaz's queue, oldest first, with the table to call out."""
+    """Oshpaz navbati, eng eskisidan, stol raqami bilan."""
 
     id: int
     order_id: int

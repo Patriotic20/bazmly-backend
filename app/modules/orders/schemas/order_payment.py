@@ -14,7 +14,7 @@ class OrderPaymentCreate(BaseModel):
 
 
 class OrderPaymentRead(ReadSchema):
-    """Split payments are one order, several rows."""
+    """Bo'lib to'lash bitta buyurtma va bir necha qator bo'ladi."""
 
     id: int
     method: OrderPaymentMethod

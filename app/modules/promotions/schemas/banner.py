@@ -5,7 +5,7 @@ from app.modules.promotions.enums import BannerTargetType
 
 
 class BannerRead(ReadSchema):
-    """The "Eng yaxshi takliflar" carousel."""
+    """Eng yaxshi takliflar karuseli."""
 
     id: int
     image_url: str

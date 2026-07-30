@@ -20,7 +20,7 @@ class VenueGroupUpdate(UpdateSchema):
 
 
 class VenueGroupRead(ReadSchema):
-    """`logo_url` lives here and nowhere else — a branch has no logo of its own."""
+    """`logo_url` faqat shu yerda saqlanadi — filialning o'z logotipi yo'q."""
 
     id: int
     owner_id: int

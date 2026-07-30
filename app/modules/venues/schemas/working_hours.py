@@ -20,8 +20,11 @@ class WorkingHoursCreate(BaseModel):
 
 
 class WorkingHoursReplace(BaseModel):
-    """The whole week at once. Editing rewrites all seven rows rather than diffing
-    days, so a removed day cannot survive as a stale row."""
+    """Butun hafta bir yo'la yoziladi.
+
+    Tahrirlash yettala qatorni qayta yozadi, kunlarni taqqoslamaydi — shunda
+    olib tashlangan kun eski qator bo'lib qolmaydi.
+    """
 
     days: list[WorkingHoursCreate] = Field(min_length=1, max_length=7)
 

@@ -18,7 +18,7 @@ class VenueStaffUpdate(UpdateSchema):
 
 
 class VenueStaffListItem(ReadSchema):
-    """A Hodimlar card. No credentials — those live on `users` and never ship."""
+    """Hodimlar kartasi. Parol va login qaytarilmaydi — ular `users` da saqlanadi."""
 
     id: int
     venue_id: int | None = None

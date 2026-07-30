@@ -10,10 +10,10 @@ class VenueTableCreate(BaseModel):
 
 
 class TableCountsCreate(BaseModel):
-    """Onboarding's capacity buckets: `{2: 4, 4: 6, 8: 2}`.
+    """Boshlang'ich sozlashdagi sig'im guruhlari: `{2: 4, 4: 6, 8: 2}`.
 
-    Input, not state — the service expands these into numbered rows and the
-    buckets themselves are never stored.
+    Bu kiritiladigan ma'lumot, saqlanadigan holat emas — server ularni
+    raqamlangan stollarga yoyadi, guruhlarning o'zi saqlanmaydi.
     """
 
     counts: dict[int, int] = Field(min_length=1)

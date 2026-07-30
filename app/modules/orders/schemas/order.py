@@ -24,8 +24,9 @@ class OrderCancel(BaseModel):
 
 
 class OrderListItem(ReadSchema):
-    """A Buyurtmalar card. `elapsed_seconds` is `now - opened_at`, computed by the
-    service at read — the timer on the card is never a stored number."""
+    """Buyurtmalar kartasi. `elapsed_seconds` o'qish paytida hisoblanadi —
+    kartadagi taymer hech qachon saqlanmaydi.
+    """
 
     id: int
     order_number: int
@@ -70,10 +71,10 @@ class OrderDetailRead(ReadSchema):
 
 
 class TableBoardRow(ReadSchema):
-    """One tile on the Stollar board.
+    """Stollar taxtasidagi bitta katak.
 
-    `order` is `None` for a free table. There is no `venue_tables.state` column, so
-    nothing can disagree with the orders table.
+    Bo'sh stol uchun `order` qiymati `None` bo'ladi. `venue_tables` da holat
+    ustuni yo'q, shuning uchun taxta buyurtmalar bilan zid kelmaydi.
     """
 
     table_id: int

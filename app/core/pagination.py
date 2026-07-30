@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PaginationParams:
-    """FastAPI dependency carrying the limit/offset window."""
+    """Sahifalash oynasi: `limit` va `offset`."""
 
     def __init__(
         self,
@@ -18,15 +18,12 @@ class PaginationParams:
         self.offset = offset
 
 
+# `arbitrary_types_allowed` is what lets repositories return `Page[Venue]` or
+# `Page[VenueSearchRow]` — ORM models and plain dataclasses have no pydantic-core
+# schema, and a repository has no business converting to a response schema. API
+# layers keep returning `Page[SomePydanticSchema]`, which validates as before.
 class Page[T](BaseModel):
-    """A single page of ``T`` items plus the totals needed to page through.
-
-    ``arbitrary_types_allowed`` is what lets repositories return ``Page[Venue]`` or
-    ``Page[VenueSearchRow]`` — ORM models and plain dataclasses have no
-    pydantic-core schema, and a repository has no business converting to a
-    response schema. API layers keep returning ``Page[SomePydanticSchema]``, which
-    validates exactly as before.
-    """
+    """Bir sahifa element va ular orasida harakatlanish uchun umumiy sonlar."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

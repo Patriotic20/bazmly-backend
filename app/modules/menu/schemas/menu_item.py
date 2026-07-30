@@ -46,10 +46,10 @@ class MenuItemUpdate(UpdateSchema):
 
 
 class BranchAvailabilityUpdate(BaseModel):
-    """Step 3 of the builder: which branches serve this dish, at what price.
+    """Konstruktorning 3-bosqichi: taomni qaysi filiallar va qanday narxda taqdim etadi.
 
-    Branches absent from `venue_ids` lose their row entirely, which is what makes
-    the dish absent from their menu rather than merely unavailable.
+    `venue_ids` ro'yxatiga kirmagan filialdan qator butunlay o'chiriladi — shu
+    sababli taom u yerda mavjud emas holatida emas, umuman ko'rinmaydi.
     """
 
     venue_ids: list[int]
@@ -64,7 +64,7 @@ class BranchAvailabilityUpdate(BaseModel):
 
 
 class MenuItemListItem(ReadSchema):
-    """A grid tile. `effective_price` is already branch-resolved."""
+    """Menyu katakchasi. `effective_price` filial narxi bilan hisoblangan."""
 
     id: int
     name: str

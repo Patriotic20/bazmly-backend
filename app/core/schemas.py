@@ -75,22 +75,19 @@ def _normalise_promo_code(value: Any) -> Any:
 PromoCodeStr = Annotated[str, BeforeValidator(_normalise_promo_code)]
 
 
+# `from_attributes` is what lets a service hand an ORM object or a repository
+# dataclass straight to `model_validate`.
 class ReadSchema(BaseModel):
-    """Base for every response schema.
-
-    `from_attributes` is what lets a service hand an ORM object or a repository
-    dataclass straight to `model_validate`.
-    """
+    """Barcha javob sxemalari uchun asos."""
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class UpdateSchema(BaseModel):
-    """Base for every `XUpdate`.
+    """Barcha tahrirlash sxemalari uchun asos.
 
-    Every field is optional and the payload is consumed with `exclude_unset=True`,
-    so an empty body would otherwise be a silent 200 that changed nothing. It is a
-    422 instead.
+    Har bir maydon ixtiyoriy. Bo'sh so'rov 422 qaytaradi — jimgina hech narsa
+    o'zgartirmaslik o'rniga.
     """
 
     model_config = ConfigDict(extra="forbid")

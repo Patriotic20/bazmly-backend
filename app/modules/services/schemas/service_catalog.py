@@ -2,7 +2,7 @@ from app.core.schemas import ReadSchema
 
 
 class ServiceCatalogRead(ReadSchema):
-    """A closed, platform-owned list: Dasturxon tuzash, Raqqoslar, Kartej, ..."""
+    """Platforma belgilagan yopiq ro'yxat: Dasturxon tuzash, Raqqoslar, Kartej va boshqalar."""
 
     id: int
     slug: str

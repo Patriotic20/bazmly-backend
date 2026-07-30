@@ -24,7 +24,7 @@ class PromoCodeRead(ReadSchema):
 
 
 class PromoCodePreview(ReadSchema):
-    """What the discount would be, before anything is written."""
+    """Chegirma qancha bo'lishi — hech narsa yozilmasdan oldin."""
 
     code: str
     discount_type: DiscountType

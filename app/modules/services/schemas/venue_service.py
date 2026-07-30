@@ -11,7 +11,7 @@ class VenueServiceItemCreate(BaseModel):
 
 
 class VenueServiceItemRead(ReadSchema):
-    """The Taomlar rows nested under Dasturxon tuzash."""
+    """Dasturxon tuzash ostidagi Taomlar qatorlari."""
 
     id: int
     name: str
@@ -37,7 +37,7 @@ class VenueServiceUpdate(UpdateSchema):
 
 
 class VenueServiceRead(ReadSchema):
-    """`venue_id is None` means the price applies across the whole chain."""
+    """`venue_id` bo'sh bo'lsa, narx butun tarmoq uchun amal qiladi."""
 
     id: int
     venue_group_id: int

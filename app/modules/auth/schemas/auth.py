@@ -17,7 +17,7 @@ class OtpVerify(BaseModel):
 
 
 class StaffLogin(BaseModel):
-    """Staff sign in with an issued login, not a phone number."""
+    """Hodimlar telefon raqami bilan emas, berilgan login bilan kiradi."""
 
     login: str = Field(min_length=1, max_length=32)
     password: str = Field(min_length=1, max_length=128)
@@ -36,7 +36,7 @@ class RefreshRequest(BaseModel):
 
 
 class OtpRequested(ReadSchema):
-    """Never carries the code. Only how long it is good for."""
+    """Kodning o'zi qaytarilmaydi. Faqat amal qilish muddati."""
 
     destination: str
     expires_in_seconds: int

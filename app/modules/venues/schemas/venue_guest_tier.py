@@ -19,7 +19,7 @@ class VenueGuestTierCreate(BaseModel):
 
 
 class VenueGuestTierRead(ReadSchema):
-    """To'yxona bands. A null `max_guests` is the open-ended top band ("300+")."""
+    """To'yxona narx bosqichlari. `max_guests` bo'sh bo'lsa — bu ochiq yuqori bosqich."""
 
     id: int
     min_guests: int

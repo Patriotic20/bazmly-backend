@@ -5,8 +5,7 @@ from app.core.schemas import ReadSchema
 
 
 class NotificationRead(ReadSchema):
-    """The Xabarlar screen groups client-side by Today / This Week / This Month
-    from `sent_at`."""
+    """Xabarlar ekrani `sent_at` bo'yicha Bugun / Shu hafta / Shu oy ga ajratadi."""
 
     id: int
     type: str

@@ -19,10 +19,11 @@ class InvitationAccept(BaseModel):
 
 
 class StaffInvitationRead(ReadSchema):
-    """No `temp_password_hash`, and no plaintext.
+    """`temp_password_hash` ham, ochiq parol ham qaytarilmaydi.
 
-    The temporary password is sent once by SMS and never returned by the API —
-    an invitation that can be re-read is a permanent key to the till.
+    Vaqtinchalik parol SMS orqali bir marta yuboriladi va API dan hech qachon
+    qayta o'qib bo'lmaydi — qayta o'qiladigan taklifnoma kassaga doimiy kalit
+    bo'lib qolardi.
     """
 
     id: int

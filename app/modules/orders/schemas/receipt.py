@@ -5,11 +5,11 @@ from app.core.schemas import ReadSchema
 
 
 class ReceiptRead(ReadSchema):
-    """Written once and never updated.
+    """Chek bir marta yoziladi va hech qachon o'zgartirilmaydi.
 
-    `payload` freezes the printed lines so a reprint two months later is identical
-    regardless of what happened to the menu. A correction is a new order or a
-    refund, never an edit — which is why there is no `ReceiptUpdate`.
+    `payload` chop etilgan qatorlarni muzlatadi, shuning uchun ikki oydan keyin
+    qayta chiqarilgan chek menyudagi o'zgarishlardan qat'i nazar aynan bir xil
+    bo'ladi. Tuzatish — yangi buyurtma yoki pulni qaytarish, tahrir emas.
     """
 
     id: int
