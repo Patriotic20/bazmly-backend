@@ -3,11 +3,109 @@
 Choices the specs did not pin down, plus the places where a spec's own
 instructions conflicted with each other.
 
+- [Part 6 — Uzbek as the API's user-facing language](#part-6--uzbek-as-the-apis-user-facing-language)
 - [Part 5 — API layer](#part-5--api-layer)
 - [Part 4 — schemas and services](#part-4--schemas-and-services)
 - [Part 3 — repository layer](#part-3--repository-layer)
 - [Part 2 — models and migrations](#part-2--models-and-migrations)
 - [Part 1 — initial scaffold](#part-1--initial-scaffold)
+
+---
+
+# Part 6 — Uzbek as the API's user-facing language
+
+~410 strings translated: every route summary and description, the app metadata,
+all 21 tag descriptions, 62 schema class docstrings, and every error message.
+
+## The decision
+
+**Uzbek (Latin) is the API's user-facing language, replaced in place.** There is no
+translation catalogue and no `Accept-Language` negotiation for documentation or
+errors — one language, because the product ships to one market and a message
+catalogue for 300 keys costs more to keep correct than it returns. The
+`Accept-Language` dependency still exists and still resolves *row data*
+(venue names, menu items) through the `*_translations` tables; that is content
+i18n and is unrelated.
+
+The apostrophe is ASCII `'`, never `’` or `ʻ`. This is enforced, not stylistic:
+ruff's `RUF001` rejects the typographic forms in string literals and `RUF002` in
+docstrings, and the seed migration already spells `To'yxona` and `Qo'riqchi` this
+way.
+
+## What deliberately stayed English
+
+- **Exception `code` values and `details` keys.** `code` is the client contract —
+  `permission_denied`, `table_already_booked` — and clients branch on it.
+  `message` is display text and carries no contract. This is the mitigation for
+  the whole change: a developer debugging a 422 still has a stable English handle.
+- **`operation_id`, tag names, enum values, field names.** Machine identifiers.
+  The mobile team generates a client from the schema; translating these would
+  rename every generated method.
+- **Payme and Click webhook response bodies** — `"SIGN CHECK FAILED"`,
+  `"Success"`, `"Transaction not found"`, `"Invalid signature"`. Provider
+  protocol, not prose. A gateway that cannot parse the reply retries the callback
+  forever, which is a settlement outage no test catches by content. This was the
+  single highest-risk part of the change and is why the webhook file got its own
+  phase.
+- **`app.title = "Bazmly API"`** — a brand name, and asserted in
+  `tests/api/test_contract.py`.
+- **Log messages, code comments, module and function docstrings.** Ops greps logs;
+  contributors read comments. Only *schema class* docstrings reach the OpenAPI
+  document, and only those were translated.
+
+## Two improvements folded in
+
+**Ten tags were undeclared.** Routers used 21 distinct tags but `openapi_tags`
+declared 11, so `catalog`, `geo`, `localization`, `payments`, `promotions`,
+`reviews`, `services`, `subscriptions`, `engagement` and `venue:groups` rendered
+in Swagger with no description at all. All 21 are now declared, ordered to match
+the include order in `app/core/router.py` so the Swagger sections follow the
+module order.
+
+**`Xodim` vs `Hodimlar`.** `app/modules/staff/api/v1/router.py` said `Hodimlar` in
+four places and `Xodim qo'shish` in one. Standardised on **Hodim**.
+
+## Docstrings that were carrying Python rationale
+
+Several schema docstrings explained implementation mechanics rather than
+describing the payload — `ReadSchema` on `from_attributes`, `Page` on
+`arbitrary_types_allowed`. Those explanations are for whoever maintains the file,
+not for a mobile developer reading Swagger, so the fact moved into an English `#`
+comment above the class and the docstring became a short Uzbek description. The
+generated document is better for it: 53 component schemas now carry a description
+that describes the payload.
+
+## Risks accepted
+
+1. **Errors are Uzbek-only.** A non-Uzbek-speaking contractor reading
+   `PermissionDeniedError("Ruxsat yo'q")` loses the English affordance. Mitigated
+   by `code` staying English and `details` keys staying English-keyed.
+2. **English-speaking integrators lose the docs**, and generated SDKs carry Uzbek
+   docstrings into TypeScript/Swift comments. `README.md` keeps an English
+   description of the API's shape for that audience.
+3. **The repo is now internally bilingual** — an Uzbek `description=` can sit three
+   lines above an English function docstring. `CONVENTIONS.md` §13 is what stops
+   future contributors "fixing" this in either direction.
+4. **Nothing enforces Uzbek on the next route.** `test_contract.py` asserts
+   summaries are non-empty, not translated. A stopword test would be flaky and
+   easy to game, so this is left to review and the written rule.
+5. **Translation quality.** The glossary in the plan was the control across ~410
+   strings, but no native speaker has reviewed the diff. It is entirely string
+   literals, so it reads fast — worth one pass.
+
+## Verification
+
+| Check | Result |
+| --- | --- |
+| `ruff check` / `ruff format --check` | pass — 498 files |
+| `mypy --strict` | pass — 441 files |
+| `pytest` | pass — 97 |
+| Typographic apostrophes anywhere in `app/` | none |
+| English residue in route summaries/descriptions | none — AST-audited |
+| English residue in component schema descriptions | none |
+| Webhook provider strings intact | 4 lines present, `test_webhooks.py` passes |
+| Exception `code` values still English snake_case | 20/20 |
+| Tags declared vs used | 21 / 21 |
 
 ---
 

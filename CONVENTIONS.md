@@ -189,7 +189,27 @@ Every error leaves the application in one envelope:
 The catch-all handler logs the exception with its request id and returns a
 generic 500. Never let an internal message reach the client.
 
-## 13. Typing
+## 13. Language
+
+**User-facing prose is Uzbek (Latin). Everything else stays English.**
+
+Uzbek: route `summary` / `description`, `openapi_tags` descriptions, the app
+`summary` / `description`, Pydantic **schema class** docstrings, every error
+`message`, and validator `ValueError` text. These are what a person reads in
+Swagger or in a response body.
+
+English: exception `code` values, `details` keys, `operation_id`, tag names, enum
+values, field names, log messages, code comments, **module and function
+docstrings**, and the Payme / Click webhook response bodies — those last are a
+provider protocol, not prose, and translating them breaks settlement.
+
+Clients branch on `code`. `message` is display text and carries no contract.
+
+The apostrophe is ASCII `'` — never `’`, never `ʻ`. Ruff's `RUF001`
+(string literals) and `RUF002` (docstrings) reject the typographic forms, and the
+seed migration already spells `To'yxona` and `Qo'riqchi` this way.
+
+## 14. Typing
 
 Type hints on everything — parameters, returns, and class attributes.
 `uv run mypy app` must pass under `strict = true` with zero errors.
