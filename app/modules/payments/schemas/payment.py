@@ -21,7 +21,9 @@ class PaymentCreate(BaseModel):
         """Mirrors the CHECK constraint so the 422 beats the 500."""
         targets = [self.booking_id, self.subscription_id]
         if sum(t is not None for t in targets) != 1:
-            raise ValueError("Exactly one of booking_id or subscription_id must be set")
+            raise ValueError(
+                "`booking_id` yoki `subscription_id` dan faqat bittasi to'ldirilishi kerak"
+            )
         return self
 
 

@@ -24,7 +24,7 @@ class TableCountsCreate(BaseModel):
     def _positive(cls, value: dict[int, int]) -> dict[int, int]:
         for seats, count in value.items():
             if seats <= 0 or count <= 0:
-                raise ValueError("Seat count and table count must both be positive")
+                raise ValueError("O'rin soni ham, stol soni ham noldan katta bo'lishi kerak")
         return value
 
 

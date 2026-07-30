@@ -36,7 +36,7 @@ class _BookingCreateBase(BaseModel):
     @model_validator(mode="after")
     def _times_are_ordered(self) -> Self:
         if self.end_time <= self.start_time:
-            raise ValueError("end_time must be after start_time")
+            raise ValueError("`end_time` `start_time` dan keyin bo'lishi kerak")
         return self
 
 

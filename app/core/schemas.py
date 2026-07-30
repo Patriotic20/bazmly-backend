@@ -61,7 +61,7 @@ def _normalise_phone(value: Any) -> Any:
 
 def _check_phone(value: str) -> str:
     if not E164_UZ.match(value):
-        raise ValueError("Phone must be a valid Uzbek number in +998XXXXXXXXX form")
+        raise ValueError("Telefon raqami +998XXXXXXXXX ko'rinishida bo'lishi kerak")
     return value
 
 
@@ -95,5 +95,5 @@ class UpdateSchema(BaseModel):
     @model_validator(mode="after")
     def _reject_empty_patch(self) -> Self:
         if not self.model_fields_set:
-            raise ValueError("At least one field must be provided")
+            raise ValueError("Kamida bitta maydon yuborilishi kerak")
         return self

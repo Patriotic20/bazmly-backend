@@ -14,7 +14,7 @@ class VenueGuestTierCreate(BaseModel):
     @model_validator(mode="after")
     def _range_is_ordered(self) -> Self:
         if self.max_guests is not None and self.max_guests < self.min_guests:
-            raise ValueError("max_guests must not be below min_guests")
+            raise ValueError("`max_guests` `min_guests` dan kichik bo'lmasligi kerak")
         return self
 
 

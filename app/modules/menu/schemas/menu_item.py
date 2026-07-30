@@ -27,9 +27,9 @@ class MenuItemCreate(BaseModel):
         every price read has to guess which of two columns is authoritative.
         """
         if self.has_variants and self.base_price is not None:
-            raise ValueError("An item with variants must not carry a base price")
+            raise ValueError("Variantli taomda asosiy narx bo'lmasligi kerak")
         if not self.has_variants and self.base_price is None:
-            raise ValueError("An item without variants needs a base price")
+            raise ValueError("Variantsiz taom uchun asosiy narx kerak")
         return self
 
 
@@ -59,7 +59,7 @@ class BranchAvailabilityUpdate(BaseModel):
     def _overrides_belong_to_ticked_branches(self) -> Self:
         unknown = set(self.price_overrides) - set(self.venue_ids)
         if unknown:
-            raise ValueError(f"Price overrides for unticked branches: {sorted(unknown)}")
+            raise ValueError(f"Belgilanmagan filiallar uchun narx berilgan: {sorted(unknown)}")
         return self
 
 

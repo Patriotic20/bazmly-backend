@@ -15,7 +15,7 @@ class WorkingHoursCreate(BaseModel):
     @model_validator(mode="after")
     def _open_days_need_hours(self) -> Self:
         if not self.is_closed and (self.opens_at is None or self.closes_at is None):
-            raise ValueError("An open day needs both opens_at and closes_at")
+            raise ValueError("Ochiq kun uchun `opens_at` va `closes_at` ikkalasi ham kerak")
         return self
 
 
