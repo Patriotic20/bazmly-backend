@@ -8,18 +8,23 @@ from app.modules.auth.enums import UserRole
 from tests.api.conftest import auth_header
 from tests.repositories.factories import make_district, make_region, make_user, make_venue
 
+# `944af78cfba8` seeds all fourteen real ISO 3166-2:UZ codes, and `regions.code`
+# is unique — a creation test has to ask for one the register does not use, or it
+# is testing the conflict path by accident.
+UNSEEDED_CODE = "UZ-ZZ"
+
 
 async def test_admin_creates_a_region(api_client: AsyncClient, session: AsyncSession) -> None:
     admin = await make_user(session, role=UserRole.ADMIN)
 
     response = await api_client.post(
         "/api/v1/regions",
-        json={"name": "Namangan", "code": "UZ-NG"},
+        json={"name": "Yangi viloyat", "code": UNSEEDED_CODE},
         headers=auth_header(admin.id),
     )
 
     assert response.status_code == 201
-    assert response.json()["code"] == "UZ-NG"
+    assert response.json()["code"] == UNSEEDED_CODE
 
 
 async def test_customer_cannot_create_a_region(
@@ -29,7 +34,7 @@ async def test_customer_cannot_create_a_region(
 
     response = await api_client.post(
         "/api/v1/regions",
-        json={"name": "Namangan", "code": "UZ-NG"},
+        json={"name": "Yangi viloyat", "code": UNSEEDED_CODE},
         headers=auth_header(customer.id),
     )
     assert response.status_code == 403
@@ -39,20 +44,20 @@ async def test_admin_updates_a_region(api_client: AsyncClient, session: AsyncSes
     admin = await make_user(session, role=UserRole.ADMIN)
     created = await api_client.post(
         "/api/v1/regions",
-        json={"name": "Namangan", "code": "UZ-NG"},
+        json={"name": "Yangi viloyat", "code": UNSEEDED_CODE},
         headers=auth_header(admin.id),
     )
     region_id = created.json()["id"]
 
     response = await api_client.patch(
         f"/api/v1/regions/{region_id}",
-        json={"name": "Namangan viloyati"},
+        json={"name": "Yangi viloyat (tahrirlangan)"},
         headers=auth_header(admin.id),
     )
 
     assert response.status_code == 200
-    assert response.json()["name"] == "Namangan viloyati"
-    assert response.json()["code"] == "UZ-NG"
+    assert response.json()["name"] == "Yangi viloyat (tahrirlangan)"
+    assert response.json()["code"] == UNSEEDED_CODE
 
 
 async def test_listing_regions_needs_no_auth(api_client: AsyncClient) -> None:
@@ -64,14 +69,14 @@ async def test_duplicate_region_code_is_rejected(
     api_client: AsyncClient, session: AsyncSession
 ) -> None:
     admin = await make_user(session, role=UserRole.ADMIN)
-    body = {"name": "Namangan", "code": "UZ-NG"}
+    body = {"name": "Yangi viloyat", "code": UNSEEDED_CODE}
     assert (
         await api_client.post("/api/v1/regions", json=body, headers=auth_header(admin.id))
     ).status_code == 201
 
     second = await api_client.post(
         "/api/v1/regions",
-        json={"name": "Boshqa", "code": "UZ-NG"},
+        json={"name": "Boshqa", "code": UNSEEDED_CODE},
         headers=auth_header(admin.id),
     )
     assert second.status_code == 422

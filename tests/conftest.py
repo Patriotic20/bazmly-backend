@@ -46,8 +46,12 @@ from app.main import app
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Everything a test may write, in one CASCADE. The seeded reference data
-# (languages, staff_roles, permissions, service_catalog, amenities)
-# is deliberately absent — factories depend on it and it is never mutated.
+# (languages, staff_roles, permissions, service_catalog, amenities, and every
+# region and district of Uzbekistan) is deliberately absent — factories depend on
+# it and it is never mutated. `regions` and `districts` left this list when
+# `944af78cfba8` turned them into reference data: truncating them would delete
+# the seed for the rest of the session, and the rows the factories add on top
+# carry random names and codes, so leaving them behind collides with nothing.
 DOMAIN_TABLES = (
     "bookings",
     "orders",
@@ -57,8 +61,6 @@ DOMAIN_TABLES = (
     "venues",
     "venue_groups",
     "users",
-    "districts",
-    "regions",
 )
 
 
