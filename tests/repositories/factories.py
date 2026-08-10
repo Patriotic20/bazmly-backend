@@ -54,10 +54,15 @@ async def get_staff_role(session: AsyncSession, slug: str = "waiter") -> StaffRo
     return result.scalar_one()
 
 
-async def make_district(session: AsyncSession) -> District:
+async def make_region(session: AsyncSession) -> Region:
     region = Region(name=f"Region {unique_suffix()}", code=unique_suffix()[:6])
     session.add(region)
     await session.flush()
+    return region
+
+
+async def make_district(session: AsyncSession) -> District:
+    region = await make_region(session)
     district = District(
         region_id=region.id,
         name=f"District {unique_suffix()}",

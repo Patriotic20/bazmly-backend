@@ -1,12 +1,12 @@
-"""Region writes are admin-only; region reads stay public for a customer who has
-not signed in yet."""
+"""Region and district writes are admin-only; reads stay public for a customer who
+has not signed in yet."""
 
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.enums import UserRole
 from tests.api.conftest import auth_header
-from tests.repositories.factories import make_district, make_user
+from tests.repositories.factories import make_district, make_region, make_user, make_venue
 
 
 async def test_admin_creates_a_region(api_client: AsyncClient, session: AsyncSession) -> None:
@@ -89,3 +89,86 @@ async def test_deleting_a_region_with_districts_is_refused(
     )
 
     assert response.status_code == 422
+
+
+async def test_admin_creates_a_district(api_client: AsyncClient, session: AsyncSession) -> None:
+    admin = await make_user(session, role=UserRole.ADMIN)
+    region = await make_region(session)
+
+    response = await api_client.post(
+        "/api/v1/districts",
+        json={
+            "region_id": region.id,
+            "name": "Chilonzor",
+            "latitude": "41.275400",
+            "longitude": "69.204200",
+        },
+        headers=auth_header(admin.id),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "Chilonzor"
+
+
+async def test_district_rejects_coordinates_outside_uzbekistan(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """Catches a transposed lat/lng at the edge: 69,41 is in China, 41,69 is Tashkent."""
+    admin = await make_user(session, role=UserRole.ADMIN)
+    region = await make_region(session)
+
+    response = await api_client.post(
+        "/api/v1/districts",
+        json={
+            "region_id": region.id,
+            "name": "Teskari",
+            "latitude": "69.204200",
+            "longitude": "41.275400",
+        },
+        headers=auth_header(admin.id),
+    )
+
+    assert response.status_code == 422
+
+
+async def test_district_rejects_an_unknown_region(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    admin = await make_user(session, role=UserRole.ADMIN)
+
+    response = await api_client.post(
+        "/api/v1/districts",
+        json={
+            "region_id": 10_000_000,
+            "name": "Yo'q",
+            "latitude": "41.300000",
+            "longitude": "69.200000",
+        },
+        headers=auth_header(admin.id),
+    )
+    assert response.status_code in (404, 422)
+
+
+async def test_deleting_a_district_used_by_a_venue_is_refused(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    admin = await make_user(session, role=UserRole.ADMIN)
+    venue = await make_venue(session)
+
+    response = await api_client.delete(
+        f"/api/v1/districts/{venue.district_id}", headers=auth_header(admin.id)
+    )
+
+    assert response.status_code == 422
+
+
+async def test_customer_cannot_delete_a_district(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    customer = await make_user(session, role=UserRole.CUSTOMER)
+    district = await make_district(session)
+
+    response = await api_client.delete(
+        f"/api/v1/districts/{district.id}", headers=auth_header(customer.id)
+    )
+    assert response.status_code == 403
