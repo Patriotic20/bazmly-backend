@@ -14,7 +14,6 @@ Adding a model without registering it here makes it invisible to
 
 from app.modules.analytics.models import VenueDailyStats
 from app.modules.auth.models import (
-    AuthIdentity,
     Device,
     Friendship,
     RefreshToken,
@@ -84,7 +83,6 @@ from app.modules.venues.models import (
 
 __all__ = [
     "Amenity",
-    "AuthIdentity",
     "Booking",
     "BookingItem",
     "BookingPriceLine",

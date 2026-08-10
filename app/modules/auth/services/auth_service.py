@@ -20,7 +20,6 @@ from app.core.security import (
 from app.modules.auth.enums import UserRole, UserStatus
 from app.modules.auth.models import RefreshToken, User
 from app.modules.auth.repositories import (
-    AuthIdentityRepository,
     RefreshTokenRepository,
     UserRepository,
 )
@@ -62,7 +61,6 @@ class AuthService:
         self.session = session
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
-        self.identities = AuthIdentityRepository(session)
         self.languages = LanguageRepository(session)
 
     async def check_phone(self, payload: PhoneCheck) -> PhoneCheckResult:
