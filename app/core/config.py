@@ -29,10 +29,22 @@ class ApiPrefix(BaseModel):
 
 
 class CorsConfig(BaseModel):
+    """Who the browser is allowed to call this API from.
+
+    `origins` is the one value that has to change per deployment. The frontend
+    calls the API directly rather than through a proxy, so a wrong value here is
+    the difference between a working page and a page where every request fails
+    while `curl` keeps working — CORS is enforced by the browser, not the server.
+    """
+
     origins: list[str] = ["*"]
     allow_credentials: bool = True
     allow_methods: list[str] = ["*"]
     allow_headers: list[str] = ["*"]
+    # A response header is invisible to browser JavaScript until it is named
+    # here. `X-Request-ID` is on every response and is what ties a user's bug
+    # report to a server log line, so the client has to be able to read it.
+    expose_headers: list[str] = ["X-Request-ID"]
 
 
 class AuthMode(StrEnum):
