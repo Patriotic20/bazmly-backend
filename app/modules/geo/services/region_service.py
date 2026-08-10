@@ -35,11 +35,12 @@ class RegionService:
         if code_taken:
             raise ValidationFailedError("Bu kod allaqachon band", details={"code": new_code})
 
-        for field, value in changes.items():
-            setattr(region, field, value)
+        updated = await self.regions.update_fields(region_id, changes)
+        if updated is None:
+            raise NotFoundError("Viloyat topilmadi")
 
         await self.session.commit()
-        return RegionRead.model_validate(region)
+        return RegionRead.model_validate(updated)
 
     async def delete(self, region_id: int) -> None:
         region = await self.regions.get_by_id(region_id)

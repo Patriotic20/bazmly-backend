@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.geo.models import District, Region
@@ -45,6 +46,20 @@ class RegionRepository:
         self.session.add(region)
         await self.session.flush()
         return region
+
+    async def update_fields(self, region_id: int, values: dict[str, Any]) -> Region | None:
+        """Partial update from an already-validated `RegionUpdate`.
+
+        Empty `values` is a no-op returning the row, so a caller that filtered
+        everything out does not issue an `UPDATE ... SET` with nothing to set.
+        """
+        if not values:
+            return await self.get_by_id(region_id)
+        result = await self.session.execute(
+            update(Region).where(Region.id == region_id).values(**values).returning(Region)
+        )
+        await self.session.flush()
+        return result.scalars().one_or_none()
 
     async def delete(self, region: Region) -> None:
         await self.session.delete(region)
