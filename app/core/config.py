@@ -68,26 +68,6 @@ class AppEnv(StrEnum):
     PRODUCTION = "production"
 
 
-class GoogleSettings(BaseModel):
-    """Google Sign-In.
-
-    `client_ids` is a list because iOS, Android and web each get their own OAuth
-    client from Google and every one of them mints tokens with its own `aud`. An
-    empty list means Google sign-in is off — unlike the auth kill switch this is
-    not fatal at startup, since an app can ship perfectly well with phone login
-    only. The endpoint refuses instead.
-    """
-
-    client_ids: list[str] = []
-    jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
-    timeout_seconds: float = 5.0
-    jwks_cache_seconds: int = 60 * 60
-
-    @property
-    def enabled(self) -> bool:
-        return bool(self.client_ids)
-
-
 class RedisConfig(BaseModel):
     url: str = "redis://localhost:6379/0"
 
@@ -113,7 +93,6 @@ class Settings(BaseSettings):
     cors: CorsConfig = CorsConfig()
     logging: LoggingConfig = LoggingConfig()
     security: SecurityConfig = SecurityConfig()
-    google: GoogleSettings = GoogleSettings()
     redis: RedisConfig = RedisConfig()
 
 

@@ -16,7 +16,6 @@ from app.core.exceptions import (
     DepositRequiredError,
     DomainError,
     GroupAlreadyExistsError,
-    InvalidSocialTokenError,
     LeadTimeTooShortError,
     NotFoundError,
     PaymentIncompleteError,
@@ -41,9 +40,6 @@ DOMAIN_STATUS: dict[type[DomainError], int] = {
     # 401: no usable token. 403 is for a caller we know and still refuse — signing
     # in again fixes the first and not the second.
     AuthenticationRequiredError: 401,
-    # A rejected Google token is the same shape of problem: fetch a fresh one and
-    # retry, which is what 401 tells a client to do.
-    InvalidSocialTokenError: 401,
     PermissionDeniedError: 403,
     # 409: the request was well-formed but lost a race or hit a live-state rule.
     PhoneAlreadyRegisteredError: 409,

@@ -48,12 +48,6 @@ class PhoneLogin(BaseModel):
     password: str | None = Field(default=None, max_length=128)
 
 
-class GoogleLogin(BaseModel):
-    """Google'dan olingan `id_token`. Email va ism o'sha tokendan o'qiladi."""
-
-    id_token: str = Field(min_length=1)
-
-
 class PasswordChange(BaseModel):
     """Parol hali o'rnatilmagan bo'lsa `current_password` talab qilinmaydi."""
 
@@ -79,6 +73,6 @@ class TokenPair(ReadSchema):
     expires_in_seconds: int
     user_id: int
     must_change_password: bool = False
-    # `false` faqat Google orqali yaratilgan va hali ismi yo'q akkauntlarda
-    # bo'ladi — mijoz shunda `/complete-profile` ekranini ko'rsatadi.
+    # `false` faqat ismi yo'q holda yaratilgan akkauntlarda bo'ladi — mijoz
+    # shunda `/complete-profile` ekranini ko'rsatadi.
     profile_completed: bool = True

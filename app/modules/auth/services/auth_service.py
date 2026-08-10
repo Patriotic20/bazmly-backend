@@ -6,17 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.mixins import utcnow_naive
 from app.core.exceptions import (
-    InvalidSocialTokenError,
     NotFoundError,
     PermissionDeniedError,
     PhoneAlreadyRegisteredError,
     ValidationFailedError,
-)
-from app.core.integrations.google import (
-    GoogleAuthError,
-    GoogleIdentity,
-    GoogleNotConfiguredError,
-    get_google_verifier,
 )
 from app.core.integrity import translate_integrity_error
 from app.core.security import (
@@ -24,15 +17,14 @@ from app.core.security import (
     hash_secret,
     verify_secret,
 )
-from app.modules.auth.enums import AuthProvider, UserRole, UserStatus
-from app.modules.auth.models import AuthIdentity, RefreshToken, User
+from app.modules.auth.enums import UserRole, UserStatus
+from app.modules.auth.models import RefreshToken, User
 from app.modules.auth.repositories import (
     AuthIdentityRepository,
     RefreshTokenRepository,
     UserRepository,
 )
 from app.modules.auth.schemas import (
-    GoogleLogin,
     PasswordChange,
     PhoneCheck,
     PhoneCheckResult,
@@ -85,9 +77,7 @@ class AuthService:
     async def register(self, payload: PhoneRegister) -> TokenPair:
         """Create the account and sign in, in one step.
 
-        The name arrives with the request, so the account is `active` immediately
-        — `pending_profile` now only exists for Google accounts that arrive with
-        no name at all.
+        The name arrives with the request, so the account is `active` immediately.
         """
         now = utcnow_naive()
         existing = await self.users.get_by_phone(payload.phone)
@@ -149,47 +139,6 @@ class AuthService:
             raise PermissionDeniedError(BAD_CREDENTIALS)
         if user.status != UserStatus.ACTIVE:
             raise PermissionDeniedError("Bu akkaunt faol emas")
-
-        await self.users.touch_last_login(user.id, now)
-        pair = await self._issue_tokens_in_transaction(user, now)
-        await self.session.commit()
-        return pair
-
-    async def google_login(self, payload: GoogleLogin) -> TokenPair:
-        """Sign in with a Google `id_token` we verify ourselves.
-
-        Every claim acted on here comes out of the verified token. The account is
-        keyed on Google's `sub`; the email is used to link a Google identity to an
-        account someone already made by phone, but only when Google says it
-        verified that email — an unverified one is an address the person merely
-        typed, and matching on it would hand over the account it belongs to.
-        """
-        now = utcnow_naive()
-        identity_claims = await self._verify_google(payload.id_token)
-
-        identity = await self.identities.get_by_provider(
-            AuthProvider.GOOGLE, identity_claims.subject
-        )
-        if identity is not None:
-            user = await self.users.get_by_id(identity.user_id)
-            if user is None:
-                raise NotFoundError("Bog'langan akkaunt endi mavjud emas")
-        else:
-            user = None
-            if identity_claims.email and identity_claims.email_verified:
-                user = await self.users.get_by_email(identity_claims.email)
-            if user is None:
-                user = await self._create_google_user_in_transaction(identity_claims)
-            await self.identities.create(
-                AuthIdentity(
-                    user_id=user.id,
-                    provider=AuthProvider.GOOGLE,
-                    provider_user_id=identity_claims.subject,
-                    provider_email=identity_claims.email,
-                )
-            )
-
-        self._require_usable(user)
 
         await self.users.touch_last_login(user.id, now)
         pair = await self._issue_tokens_in_transaction(user, now)
@@ -281,32 +230,6 @@ class AuthService:
         if language is None:
             raise ValidationFailedError("Asosiy til sozlanmagan")
         return language.id
-
-    async def _verify_google(self, id_token: str) -> GoogleIdentity:
-        try:
-            return await get_google_verifier().verify(id_token)
-        except GoogleNotConfiguredError as error:
-            raise ValidationFailedError("Google orqali kirish yoqilmagan") from error
-        except GoogleAuthError as error:
-            raise InvalidSocialTokenError(details={"reason": str(error)}) from error
-
-    async def _create_google_user_in_transaction(self, identity: GoogleIdentity) -> User:
-        has_name = bool(identity.first_name)
-        language_id = await self._default_language_id()
-        try:
-            return await self.users.create(
-                User(
-                    first_name=identity.first_name,
-                    last_name=identity.last_name,
-                    email=identity.email,
-                    language_id=language_id,
-                    role=UserRole.CUSTOMER,
-                    status=UserStatus.ACTIVE if has_name else UserStatus.PENDING_PROFILE,
-                    must_change_password=False,
-                )
-            )
-        except IntegrityError as error:
-            raise translate_integrity_error(error) from error
 
     async def _issue_tokens_in_transaction(self, user: User, now: datetime) -> TokenPair:
         refresh_token = generate_token()

@@ -8,7 +8,6 @@ from app.core.auth_mode import validate_auth_settings
 from app.core.config import settings
 from app.core.database.db_helper import db_helper
 from app.core.handlers import register_exception_handlers
-from app.core.integrations.google import close_google_verifier
 from app.core.logging import setup_logging
 from app.core.middleware.logging import LoggingMiddleware
 from app.core.middleware.request_id import RequestIDMiddleware
@@ -26,7 +25,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     yield
 
-    await close_google_verifier()
     await close_redis()
     await db_helper.dispose()
 

@@ -1,5 +1,4 @@
 from app.modules.auth.schemas.auth import (
-    GoogleLogin,
     PasswordChange,
     PhoneCheck,
     PhoneCheckResult,
@@ -30,7 +29,6 @@ __all__ = [
     "FriendshipCreate",
     "FriendshipRead",
     "FriendshipRespond",
-    "GoogleLogin",
     "PasswordChange",
     "PhoneCheck",
     "PhoneCheckResult",

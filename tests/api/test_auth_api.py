@@ -189,3 +189,14 @@ async def test_logout_kills_only_the_presented_session(
         "/api/v1/auth/refresh", json={"refresh_token": second_device["refresh_token"]}
     )
     assert alive.status_code == 200
+
+
+async def test_google_login_route_is_gone(client: AsyncClient) -> None:
+    """Google auth was removed; the route must not linger as a 500 or a stub."""
+    response = await client.post("/api/v1/auth/social/google", json={"id_token": "anything"})
+    assert response.status_code == 404
+
+
+async def test_openapi_has_no_google_operation(client: AsyncClient) -> None:
+    schema = (await client.get("/api/openapi.json")).json()
+    assert not [path for path in schema["paths"] if "google" in path.lower()]

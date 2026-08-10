@@ -118,18 +118,6 @@ class PhoneAlreadyRegisteredError(DomainError):
     message = "Bu telefon raqami allaqachon ro'yxatda"
 
 
-class InvalidSocialTokenError(DomainError):
-    """The Google `id_token` did not verify.
-
-    401 rather than 422: the credential is the problem, and the client's move is
-    to get a fresh token from Google and retry — exactly what a 401 tells it to
-    do. The reason travels in `details` for support, never the token itself.
-    """
-
-    code = "invalid_social_token"
-    message = "Google tokeni yaroqsiz"
-
-
 class TooManyAttemptsError(DomainError):
     code = "too_many_attempts"
     message = "Urinishlar juda ko'p. Keyinroq urinib ko'ring"

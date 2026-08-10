@@ -4,7 +4,6 @@ from app.core.dependencies import CurrentUser, PendingUser
 from app.modules.auth.api.dependencies import AuthServiceDep, UserServiceDep
 from app.modules.auth.api.tokens import with_access_token
 from app.modules.auth.schemas import (
-    GoogleLogin,
     PasswordChange,
     PhoneCheck,
     PhoneCheckResult,
@@ -61,27 +60,12 @@ async def login(payload: PhoneLogin, service: AuthServiceDep) -> TokenPair:
 
 
 @router.post(
-    "/social/google",
-    response_model=TokenPair,
-    operation_id="auth_google_login",
-    summary="Google orqali kirish",
-    description=(
-        "Google bergan `id_token` server tomonida tekshiriladi. Email Google "
-        "tomonidan tasdiqlangan bo'lsa, mavjud akkauntga bog'lanadi — ikkinchi "
-        "akkaunt yaratilmaydi."
-    ),
-)
-async def google_login(payload: GoogleLogin, service: AuthServiceDep) -> TokenPair:
-    return with_access_token(await service.google_login(payload))
-
-
-@router.post(
     "/complete-profile",
     response_model=UserRead,
     operation_id="auth_complete_profile",
     summary="Profilni to'ldirish",
     description=(
-        "Google orqali kirgan va ismi kelmagan akkauntlar uchun. Ism kiritilgach, "
+        "Ismi kelmagan holda yaratilgan akkauntlar uchun. Ism kiritilgach, "
         "akkaunt `pending_profile` dan `active` ga o'tadi."
     ),
 )
