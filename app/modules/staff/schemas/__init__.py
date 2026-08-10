@@ -2,6 +2,7 @@ from app.modules.staff.schemas.permission import PermissionRead
 from app.modules.staff.schemas.staff_invitation import (
     InvitationAccept,
     StaffInvitationCreate,
+    StaffInvitationCreated,
     StaffInvitationRead,
 )
 from app.modules.staff.schemas.staff_role import (
@@ -21,6 +22,7 @@ __all__ = [
     "PermissionRead",
     "StaffCountsRead",
     "StaffInvitationCreate",
+    "StaffInvitationCreated",
     "StaffInvitationRead",
     "StaffRoleRead",
     "StaffRoleWithPermissionsRead",

@@ -7,10 +7,10 @@ from app.modules.auth.enums import UserRole, UserStatus, UserTheme
 
 
 class UserCreate(BaseModel):
-    """Faqat tasdiqlash kodi ishlatilgandan keyin yaratiladi.
+    """Ichki foydalanish uchun. Ro'yxatdan o'tish `PhoneRegister` orqali ketadi.
 
-    Bu yerda parol yo'q: mijozlar SMS kod bilan kiradi, hodimlarga esa parol
-    taklifnoma orqali beriladi — ro'yxatdan o'tishda tanlanmaydi.
+    Bu yerda parol yo'q: parol o'rnatish alohida qadam (`POST /auth/password`),
+    hodimlarga esa parol taklifnoma orqali beriladi.
     """
 
     first_name: str = Field(min_length=1, max_length=100)
@@ -47,7 +47,6 @@ class UserRead(ReadSchema):
     role: UserRole
     status: UserStatus
     theme: UserTheme
-    phone_verified_at: datetime | None = None
     created_at: datetime
 
 

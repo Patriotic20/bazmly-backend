@@ -1,25 +1,17 @@
-"""The registration state machine, which is the reason AuthService exists."""
-
-import re
+"""The registration and sign-in rules, which are the reason AuthService exists."""
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import InvalidCodeError, TooManyAttemptsError
-from app.modules.auth.enums import UserStatus, VerificationPurpose
+from app.core.exceptions import PermissionDeniedError, PhoneAlreadyRegisteredError
+from app.modules.auth.enums import UserStatus
 from app.modules.auth.models import User
-from app.modules.auth.schemas import OtpRequest, OtpVerify
+from app.modules.auth.schemas import PhoneCheck, PhoneLogin, PhoneRegister
 from app.modules.auth.services import AuthService
-from tests.services.conftest import RecordingSmsSender
 
 PHONE = "+998901234567"
-
-
-def code_from(body: str) -> str:
-    match = re.search(r"\b(\d{6})\b", body)
-    assert match is not None, f"No 6-digit code in {body!r}"
-    return match.group(1)
+PASSWORD = "parol12345"
 
 
 async def count_users(session: AsyncSession, phone: str) -> int:
@@ -29,95 +21,106 @@ async def count_users(session: AsyncSession, phone: str) -> int:
     return int(result.scalar_one())
 
 
-async def test_no_user_row_exists_before_the_code_is_verified(
-    session: AsyncSession, sms: RecordingSmsSender
-) -> None:
-    """Requesting a code must not create an account.
+def register_payload(**overrides: object) -> PhoneRegister:
+    return PhoneRegister.model_validate(
+        {"phone": PHONE, "first_name": "Ali", "last_name": "Valiyev", **overrides}
+    )
 
-    If it did, anyone could mint rows for numbers they do not control and collide
-    with `users.phone` when the real owner later signs up.
+
+async def test_the_same_number_in_three_formats_is_one_account(session: AsyncSession) -> None:
+    """Normalisation happens in the schema type, so every entry point shares it.
+
+    Without it `901234567` and `+998901234567` would be two accounts, and the
+    second registration would succeed instead of colliding.
     """
     service = AuthService(session)
+    await service.register(register_payload())
 
-    await service.request_code(OtpRequest(destination=PHONE))
-
-    assert await count_users(session, PHONE) == 0
-    assert sms.messages, "A code should have been sent"
-
-    code = code_from(sms.last_body_for(PHONE))
-    await service.verify_code(OtpVerify(destination=PHONE, code=code))
+    for typed in ("901234567", "998901234567", "+998 90 123-45-67"):
+        result = await service.check_phone(PhoneCheck.model_validate({"phone": typed}))
+        assert result.registered, typed
+        assert result.phone == PHONE
 
     assert await count_users(session, PHONE) == 1
 
 
-async def test_verified_user_starts_in_pending_profile(
-    session: AsyncSession, sms: RecordingSmsSender
-) -> None:
-    """Verification proves the phone, not the person. A name promotes to active."""
+async def test_registering_makes_the_account_active_immediately(session: AsyncSession) -> None:
+    """The name arrives with the request, so there is nothing left to complete."""
     service = AuthService(session)
-    await service.request_code(OtpRequest(destination=PHONE))
-    code = code_from(sms.last_body_for(PHONE))
 
-    pair = await service.verify_code(OtpVerify(destination=PHONE, code=code))
+    pair = await service.register(register_payload())
 
     user = await session.get(User, pair.user_id)
     assert user is not None
-    assert user.status == UserStatus.PENDING_PROFILE
-    assert user.phone_verified_at is not None
+    assert user.status == UserStatus.ACTIVE
+    assert user.password_hash is None
+    assert pair.profile_completed is True
 
 
-async def test_throttle_fires_on_the_fourth_request_in_ten_minutes(
-    session: AsyncSession, sms: RecordingSmsSender
+async def test_a_taken_number_cannot_be_registered_twice(session: AsyncSession) -> None:
+    service = AuthService(session)
+    await service.register(register_payload())
+
+    with pytest.raises(PhoneAlreadyRegisteredError):
+        await service.register(register_payload(first_name="Vali"))
+
+
+async def test_an_account_without_a_password_signs_in_on_the_phone_alone(
+    session: AsyncSession,
 ) -> None:
     service = AuthService(session)
-    payload = OtpRequest(destination=PHONE)
+    registered = await service.register(register_payload())
 
-    for _ in range(3):
-        await service.request_code(payload)
+    check = await service.check_phone(PhoneCheck.model_validate({"phone": PHONE}))
+    assert check.registered is True
+    assert check.password_required is False
 
-    with pytest.raises(TooManyAttemptsError):
-        await service.request_code(payload)
-
-    assert len(sms.messages) == 3, "The throttled request must not send an SMS"
+    pair = await service.login(PhoneLogin.model_validate({"phone": PHONE}))
+    assert pair.user_id == registered.user_id
 
 
-async def test_five_wrong_codes_locks_out(session: AsyncSession, sms: RecordingSmsSender) -> None:
-    """The attempt counter is incremented atomically on every failure, so the
-    lockout cannot be sidestepped by racing two guesses."""
+async def test_a_password_set_at_registration_is_then_required(session: AsyncSession) -> None:
     service = AuthService(session)
-    await service.request_code(OtpRequest(destination=PHONE))
-    real_code = code_from(sms.last_body_for(PHONE))
-    wrong = "000000" if real_code != "000000" else "111111"
+    await service.register(register_payload(password=PASSWORD))
 
-    for _ in range(4):
-        with pytest.raises(InvalidCodeError):
-            await service.verify_code(OtpVerify(destination=PHONE, code=wrong))
+    check = await service.check_phone(PhoneCheck.model_validate({"phone": PHONE}))
+    assert check.password_required is True
 
-    # The fifth failure trips the lockout rather than reporting a wrong code.
-    with pytest.raises(TooManyAttemptsError):
-        await service.verify_code(OtpVerify(destination=PHONE, code=wrong))
+    # Omitting it is not the same as being allowed in without one.
+    with pytest.raises(PermissionDeniedError):
+        await service.login(PhoneLogin.model_validate({"phone": PHONE}))
 
-    # And the correct code no longer helps.
-    with pytest.raises(TooManyAttemptsError):
-        await service.verify_code(OtpVerify(destination=PHONE, code=real_code))
+    with pytest.raises(PermissionDeniedError):
+        await service.login(PhoneLogin.model_validate({"phone": PHONE, "password": "boshqa-parol"}))
 
-    assert await count_users(session, PHONE) == 0
+    pair = await service.login(PhoneLogin.model_validate({"phone": PHONE, "password": PASSWORD}))
+    assert pair.user_id > 0
 
 
-async def test_a_consumed_code_cannot_be_replayed(
-    session: AsyncSession, sms: RecordingSmsSender
+async def test_an_unknown_number_is_refused_the_same_way_a_wrong_password_is(
+    session: AsyncSession,
 ) -> None:
+    """Same error either way, so the endpoint is not an account-existence oracle."""
     service = AuthService(session)
-    await service.request_code(OtpRequest(destination=PHONE, purpose=VerificationPurpose.LOGIN))
-    code = code_from(sms.last_body_for(PHONE))
+    await service.register(register_payload(password=PASSWORD))
 
-    await service.verify_code(
-        OtpVerify(destination=PHONE, code=code, purpose=VerificationPurpose.LOGIN)
-    )
+    unknown = pytest.raises(PermissionDeniedError)
+    with unknown as no_account:
+        await service.login(PhoneLogin.model_validate({"phone": "+998911111111"}))
+    with pytest.raises(PermissionDeniedError) as wrong_password:
+        await service.login(PhoneLogin.model_validate({"phone": PHONE, "password": "xato-parol"}))
 
-    from app.core.exceptions import CodeExpiredError
+    assert str(no_account.value) == str(wrong_password.value)
 
-    with pytest.raises(CodeExpiredError):
-        await service.verify_code(
-            OtpVerify(destination=PHONE, code=code, purpose=VerificationPurpose.LOGIN)
-        )
+
+async def test_a_blocked_account_cannot_sign_in(session: AsyncSession) -> None:
+    service = AuthService(session)
+    pair = await service.register(register_payload())
+
+    user = await session.get(User, pair.user_id)
+    assert user is not None
+    user.status = UserStatus.BLOCKED
+    await session.flush()
+
+    with pytest.raises(PermissionDeniedError):
+        await service.login(PhoneLogin.model_validate({"phone": PHONE}))

@@ -31,3 +31,4 @@ class StaffRole(IdIntPk, TimestampMixin, Base):
     is_system: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)

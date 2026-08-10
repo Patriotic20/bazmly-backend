@@ -6,7 +6,6 @@ from fastapi import APIRouter, Path, Query
 
 from app.core.dependencies import (
     ClientLocationDep,
-    LanguageId,
     OptionalUser,
     PaginationDep,
     SessionDep,
@@ -41,11 +40,10 @@ router = APIRouter(prefix="/v1/venues", tags=["venues"])
 async def search(
     params: Annotated[VenueSearchParams, Query()],
     location: ClientLocationDep,
-    language_id: LanguageId,
     user: OptionalUser,
     service: VenueServiceDep,
 ) -> Page[VenueListItem]:
-    return await service.search(_with_location(params, location), language_id)
+    return await service.search(_with_location(params, location))
 
 
 def _with_location(params: VenueSearchParams, location: ClientLocationDep) -> VenueSearchParams:
@@ -65,12 +63,11 @@ def _with_location(params: VenueSearchParams, location: ClientLocationDep) -> Ve
     description="Suratlar, qulayliklar, turlar, ish vaqti va `is_open_now`.",
 )
 async def get_detail(
-    language_id: LanguageId,
     user: OptionalUser,
     service: VenueServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
 ) -> VenueDetailRead:
-    return await service.get_detail(venue_id, language_id)
+    return await service.get_detail(venue_id)
 
 
 @router.get(
@@ -121,11 +118,10 @@ async def list_free_tables(
     description="Ichkari, Tashqari. Umumiy — bu filtrsiz ko'rinish, alohida zona emas.",
 )
 async def list_zones(
-    language_id: LanguageId,
     service: VenueTableServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
 ) -> Sequence[VenueZoneRead]:
-    return await service.list_zones(venue_id, language_id)
+    return await service.list_zones(venue_id)
 
 
 @router.get(
@@ -137,11 +133,10 @@ async def list_zones(
 )
 async def list_menu_items(
     session: SessionDep,
-    language_id: LanguageId,
     venue_id: Annotated[int, Path(ge=1)],
     category_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> Sequence[MenuItemListItem]:
-    return await MenuService(session).list_items(venue_id, language_id, category_id)
+    return await MenuService(session).list_items(venue_id, category_id)
 
 
 @router.get(
@@ -153,11 +148,10 @@ async def list_menu_items(
 )
 async def list_services(
     session: SessionDep,
-    language_id: LanguageId,
     venue_id: Annotated[int, Path(ge=1)],
     group_id: Annotated[int, Query(ge=1)],
 ) -> Sequence[VenueServiceRead]:
-    return await VenueServiceCatalogService(session).list_for_venue(venue_id, group_id, language_id)
+    return await VenueServiceCatalogService(session).list_for_venue(venue_id, group_id)
 
 
 @router.get(

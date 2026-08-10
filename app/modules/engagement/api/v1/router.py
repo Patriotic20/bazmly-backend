@@ -3,7 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, status
 
-from app.core.dependencies import CurrentUser, LanguageId, PaginationDep, SessionDep
+from app.core.dependencies import CurrentUser, PaginationDep, SessionDep
 from app.core.pagination import Page
 from app.modules.engagement.enums import MessageSenderType
 from app.modules.engagement.schemas import (
@@ -34,10 +34,8 @@ router = APIRouter(prefix="/v1", tags=["engagement"])
     summary="Sevimli muassasalar",
     description="Xatcho'p belgisi orqali saqlangan muassasalar.",
 )
-async def list_favorites(
-    user: CurrentUser, language_id: LanguageId, session: SessionDep
-) -> Sequence[FavoriteRead]:
-    return await FavoriteService(session).list_for_user(user.id, language_id)
+async def list_favorites(user: CurrentUser, session: SessionDep) -> Sequence[FavoriteRead]:
+    return await FavoriteService(session).list_for_user(user.id)
 
 
 @router.post(

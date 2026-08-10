@@ -32,11 +32,10 @@ async def test_get_item_for_a_branch_that_does_not_serve_it_raises(
 ) -> None:
     group = await factories.make_venue_group(session)
     venue = await factories.make_venue(session, group=group)
-    language = await factories.get_language(session)
     item = await factories.make_menu_item(session, group, base_price=BASE_PRICE)
 
     with pytest.raises(NotFoundError):
-        await MenuService(session).get_item(item.id, venue.id, language.id)
+        await MenuService(session).get_item(item.id, venue.id)
 
 
 async def test_branch_override_wins_over_the_base_price(session: AsyncSession) -> None:
@@ -69,13 +68,12 @@ async def test_list_items_omits_dishes_the_branch_does_not_serve(
     """Absent, not merely flagged unavailable."""
     group = await factories.make_venue_group(session)
     venue = await factories.make_venue(session, group=group)
-    language = await factories.get_language(session)
 
     served = await factories.make_menu_item(session, group, name="Osh", base_price=BASE_PRICE)
     await factories.make_menu_branch(session, served, venue, price_override=OVERRIDE)
     unticked = await factories.make_menu_item(session, group, name="Manti", base_price=BASE_PRICE)
 
-    rows = await MenuService(session).list_items(venue.id, language.id)
+    rows = await MenuService(session).list_items(venue.id)
 
     ids = [row.id for row in rows]
     assert served.id in ids

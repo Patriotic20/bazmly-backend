@@ -4,6 +4,7 @@ from datetime import timedelta
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth_mode import auth_disabled
 from app.core.database.mixins import utcnow_naive
 from app.core.exceptions import (
     NotFoundError,
@@ -11,8 +12,7 @@ from app.core.exceptions import (
     ValidationFailedError,
 )
 from app.core.integrity import translate_integrity_error
-from app.core.security import generate_password, hash_secret, verify_secret
-from app.core.transports import get_sms_sender
+from app.core.security import generate_login, generate_password, hash_secret, verify_secret
 from app.modules.auth.enums import UserRole, UserStatus
 from app.modules.auth.models import User
 from app.modules.auth.repositories import UserRepository
@@ -30,6 +30,7 @@ from app.modules.staff.schemas import (
     InvitationAccept,
     StaffCountsRead,
     StaffInvitationCreate,
+    StaffInvitationCreated,
     StaffInvitationRead,
     StaffRoleRead,
     VenueStaffListItem,
@@ -65,11 +66,33 @@ class StaffService:
         Failure raises. It is never a silent no-op, because a write that quietly
         does nothing is indistinguishable from one that worked.
         """
+        # Services check permissions independently of the route guard — twelve call
+        # sites do — so the kill switch has to be honoured here too, or turning auth
+        # off would open the reads and leave every staff write at 403.
+        if auth_disabled():
+            return
         allowed = await self.staff.has_permission(user_id, venue_id, permission_slug)
         if not allowed:
             raise PermissionDeniedError(
                 "Bu yerda bu amalni bajarishga ruxsatingiz yo'q",
                 details={"permission": permission_slug, "venue_id": venue_id},
+            )
+
+    async def require_group_permission_in_transaction(
+        self, user_id: int, venue_group_id: int, permission_slug: str
+    ) -> None:
+        """The chain-scoped guard, for routes that create a branch.
+
+        There is no `venue_id` to check against yet, so the question becomes
+        whether the caller holds the permission anywhere in the chain.
+        """
+        if auth_disabled():
+            return
+        allowed = await self.staff.has_group_permission(user_id, venue_group_id, permission_slug)
+        if not allowed:
+            raise PermissionDeniedError(
+                "Bu tarmoqda bu amalni bajarishga ruxsatingiz yo'q",
+                details={"permission": permission_slug, "group_id": venue_group_id},
             )
 
     async def employment_for_in_transaction(self, user_id: int, venue_id: int) -> VenueStaff:
@@ -89,13 +112,12 @@ class StaffService:
     async def list_for_group(
         self,
         group_id: int,
-        language_id: int,
         venue_id: int | None = None,
         role_id: int | None = None,
         is_active: bool | None = None,
     ) -> Sequence[VenueStaffListItem]:
         rows = await self.staff.list_for_group(group_id, venue_id, role_id, is_active)
-        roles = {row.role.id: row.name for row in await self.roles.list_active(language_id)}
+        roles = {row.id: row.name for row in await self.roles.list_active()}
         users = {
             user.id: user for user in await self.users.list_by_ids([row.user_id for row in rows])
         }
@@ -116,17 +138,15 @@ class StaffService:
         counts = await self.staff.count_by_active_for_group(group_id)
         return StaffCountsRead(total=counts.total, active=counts.active, inactive=counts.inactive)
 
-    async def list_roles(
-        self, language_id: int, scope: str | None = None
-    ) -> Sequence[StaffRoleRead]:
-        rows = await self.roles.list_active(language_id, scope)
+    async def list_roles(self, scope: str | None = None) -> Sequence[StaffRoleRead]:
+        rows = await self.roles.list_active(scope)
         return [
             StaffRoleRead(
-                id=row.role.id,
-                slug=row.role.slug,
-                scope=StaffRoleScope(row.role.scope),
+                id=row.id,
+                slug=row.slug,
+                scope=StaffRoleScope(row.scope),
                 name=row.name,
-                sort_order=row.role.sort_order,
+                sort_order=row.sort_order,
             )
             for row in rows
         ]
@@ -136,12 +156,15 @@ class StaffService:
         actor_user_id: int,
         group_id: int,
         payload: StaffInvitationCreate,
-    ) -> StaffInvitationRead:
-        """Issue a login and a temporary password, send them once, store hashes.
+    ) -> StaffInvitationCreated:
+        """Issue a login and a temporary password, store the hash, return both once.
 
-        The plaintext password exists in memory only long enough to reach the SMS
-        transport. It is never returned, never persisted and never logged — the
-        transport logs that a message was sent, not what it said.
+        Returning a live credential is a deliberate exception to the rule that no
+        read schema carries a secret. With SMS gone there is no channel left to
+        deliver it, and an invitation nobody can redeem is worse than one the owner
+        reads off their own screen and hands over. It is returned by this call
+        alone — never by a list or a re-read — it expires, and
+        `must_change_password` forces rotation on first login. See DECISIONS.md.
         """
         guard_venue = payload.venue_id
         if guard_venue is None:
@@ -159,6 +182,7 @@ class StaffService:
             raise ValidationFailedError("Filial darajasidagi rol uchun filial ko'rsatilishi kerak")
 
         temporary_password = generate_password()
+        suggested_login = generate_login()
         invitation = await self.invitations.create(
             StaffInvitation(
                 venue_group_id=group_id,
@@ -171,12 +195,14 @@ class StaffService:
             )
         )
         await self.session.commit()
-
-        await get_sms_sender().send(
-            payload.phone,
-            f"Bazmly: vaqtinchalik parol {temporary_password}. 72 soat amal qiladi.",
+        # `login` is advisory — the invitation row has no column for it, so
+        # `accept_invitation` uses whatever login the person supplies. See
+        # DECISIONS.md.
+        return StaffInvitationCreated(
+            **StaffInvitationRead.model_validate(invitation).model_dump(),
+            login=suggested_login,
+            temporary_password=temporary_password,
         )
-        return StaffInvitationRead.model_validate(invitation)
 
     async def accept_invitation(self, payload: InvitationAccept, phone: str) -> VenueStaffRead:
         """Redeem an invitation into a user and an employment row.

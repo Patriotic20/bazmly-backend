@@ -88,6 +88,34 @@ class VenueStaffRepository:
         result = await self.session.execute(select(exists_stmt))
         return bool(result.scalar_one())
 
+    async def has_group_permission(
+        self, user_id: int, venue_group_id: int, permission_slug: str
+    ) -> bool:
+        """The same join, asked of a whole chain instead of one branch.
+
+        `venue_staff.venue_group_id` is NOT NULL on every row, so a group-scoped
+        employment and a branch-scoped one answer this identically: holding the
+        permission anywhere in the chain is the question, which is what a route
+        that creates a branch has to ask.
+        """
+        exists_stmt = (
+            select(VenueStaff.id)
+            .join(
+                StaffRolePermission,
+                StaffRolePermission.staff_role_id == VenueStaff.staff_role_id,
+            )
+            .join(Permission, Permission.id == StaffRolePermission.permission_id)
+            .where(
+                VenueStaff.user_id == user_id,
+                VenueStaff.is_active.is_(True),
+                VenueStaff.venue_group_id == venue_group_id,
+                Permission.slug == permission_slug,
+            )
+            .exists()
+        )
+        result = await self.session.execute(select(exists_stmt))
+        return bool(result.scalar_one())
+
     async def create(self, staff: VenueStaff) -> VenueStaff:
         self.session.add(staff)
         await self.session.flush()

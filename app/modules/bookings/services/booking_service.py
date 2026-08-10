@@ -45,10 +45,8 @@ from app.modules.bookings.schemas import (
 )
 from app.modules.menu.models import MenuItem
 from app.modules.menu.repositories import MenuItemRepository
-from app.modules.promotions.services import PromoApplication, PromoCodeService
 from app.modules.services.repositories import VenueServiceRepository
 from app.modules.staff.repositories import VenueStaffRepository
-from app.modules.subscriptions.services import SubscriptionService
 from app.modules.venues.models import Venue
 from app.modules.venues.repositories import (
     VenueGuestTierRepository,
@@ -88,11 +86,9 @@ class BookingService:
         self.venue_services = VenueServiceRepository(session)
         self.menu_items = MenuItemRepository(session)
         self.staff = VenueStaffRepository(session)
-        self.promo_codes = PromoCodeService(session)
-        self.subscriptions = SubscriptionService(session)
 
     async def create_table_reservation(
-        self, user_id: int, payload: TableReservationCreate, language_id: int
+        self, user_id: int, payload: TableReservationCreate
     ) -> BookingOwnerDetail:
         venue = await self._require_venue(payload.venue_id)
         await self._guard_lead_time(venue, payload.booking_date)
@@ -115,21 +111,15 @@ class BookingService:
                 f"{payload.end_time:%H:%M} oralig'ida allaqachon band"
             )
 
-        items, menu_subtotal = await self._build_items_in_transaction(
-            venue.id, payload.items, language_id
-        )
-        service_rows, services_total = await self._build_services_in_transaction(
-            payload.services, language_id
-        )
-        quote = await self._assemble_price_in_transaction(
-            user_id=user_id,
+        items, menu_subtotal = await self._build_items_in_transaction(venue.id, payload.items)
+        service_rows, services_total = await self._build_services_in_transaction(payload.services)
+        quote = self._assemble_price(
             venue_deposit_percent=venue.deposit_percent if venue.requires_deposit else None,
             base_amount=menu_subtotal,
             base_label="Menyu",
             base_line_type=PriceLineType.CATERING,
             services_total=services_total,
             service_rows=service_rows,
-            promo_code=payload.promo_code,
             currency=venue.currency,
         )
 
@@ -146,7 +136,6 @@ class BookingService:
             contact_phone=payload.contact_phone,
             note=payload.note,
             subtotal=quote.subtotal,
-            discount_amount=quote.discount,
             deposit_amount=quote.deposit,
             total_amount=quote.total,
             currency=venue.currency,
@@ -167,10 +156,6 @@ class BookingService:
             await self.bookings.record_status_change(
                 created.id, None, BookingStatus.PENDING, changed_by_user_id=user_id
             )
-            if quote.promo is not None:
-                await self.promo_codes.record_redemption_in_transaction(
-                    quote.promo, user_id, booking_id=created.id
-                )
             await self.session.commit()
         except IntegrityError as error:
             raise translate_integrity_error(error) from error
@@ -178,9 +163,7 @@ class BookingService:
         await get_availability_cache().invalidate(venue_availability_prefix(venue.id))
         return await self._detail_in_transaction(created, venue_name=None)
 
-    async def create_hall_event(
-        self, user_id: int, payload: HallEventCreate, language_id: int
-    ) -> BookingOwnerDetail:
+    async def create_hall_event(self, user_id: int, payload: HallEventCreate) -> BookingOwnerDetail:
         venue = await self._require_venue(payload.venue_id)
         await self._guard_lead_time(venue, payload.booking_date)
         await self._guard_open(venue.id, payload.booking_date, payload.start_time)
@@ -191,18 +174,14 @@ class BookingService:
                 f"{payload.guests_count} mehmon uchun bu muassasada narx bosqichi yo'q"
             )
 
-        service_rows, services_total = await self._build_services_in_transaction(
-            payload.services, language_id
-        )
-        quote = await self._assemble_price_in_transaction(
-            user_id=user_id,
+        service_rows, services_total = await self._build_services_in_transaction(payload.services)
+        quote = self._assemble_price(
             venue_deposit_percent=venue.deposit_percent if venue.requires_deposit else None,
             base_amount=_money(tier.base_price),
             base_label="Zal ijarasi",
             base_line_type=PriceLineType.HALL_RENTAL,
             services_total=services_total,
             service_rows=service_rows,
-            promo_code=payload.promo_code,
             currency=venue.currency,
         )
 
@@ -219,7 +198,6 @@ class BookingService:
             contact_phone=payload.contact_phone,
             note=payload.note,
             subtotal=quote.subtotal,
-            discount_amount=quote.discount,
             deposit_amount=quote.deposit,
             total_amount=quote.total,
             currency=venue.currency,
@@ -239,10 +217,6 @@ class BookingService:
             await self.bookings.record_status_change(
                 created.id, None, BookingStatus.PENDING, changed_by_user_id=user_id
             )
-            if quote.promo is not None:
-                await self.promo_codes.record_redemption_in_transaction(
-                    quote.promo, user_id, booking_id=created.id
-                )
             await self.session.commit()
         except IntegrityError as error:
             raise translate_integrity_error(error) from error
@@ -251,9 +225,9 @@ class BookingService:
         return await self._detail_in_transaction(created, venue_name=None)
 
     async def list_for_user(
-        self, user_id: int, language_id: int, statuses: Sequence[str] | None = None
+        self, user_id: int, statuses: Sequence[str] | None = None
     ) -> Sequence[BookingListItem]:
-        rows = await self.bookings.list_for_user(user_id, language_id, statuses)
+        rows = await self.bookings.list_for_user(user_id, statuses)
         return [
             BookingListItem(
                 id=row.booking.id,
@@ -413,7 +387,7 @@ class BookingService:
         return (start - now) < timedelta(hours=24)
 
     async def _build_items_in_transaction(
-        self, venue_id: int, requested: Sequence[BookingItemCreate], language_id: int
+        self, venue_id: int, requested: Sequence[BookingItemCreate]
     ) -> tuple[list[BookingItem], Decimal]:
         """Snapshot price and name on every line, at this branch's price.
 
@@ -425,7 +399,7 @@ class BookingService:
         subtotal = Decimal("0")
         for entry in requested:
             unit_price = await self.menu_items.resolve_price(entry.menu_item_id, venue_id)
-            name = await self._menu_item_name(entry.menu_item_id, venue_id, language_id)
+            name = await self._menu_item_name(entry.menu_item_id, venue_id)
             total = _money(unit_price * entry.quantity)
             subtotal += total
             items.append(
@@ -439,8 +413,8 @@ class BookingService:
             )
         return items, _money(subtotal)
 
-    async def _menu_item_name(self, menu_item_id: int, venue_id: int, language_id: int) -> str:
-        detail = await self.menu_items.get_with_variants(menu_item_id, venue_id, language_id)
+    async def _menu_item_name(self, menu_item_id: int, venue_id: int) -> str:
+        detail = await self.menu_items.get_with_variants(menu_item_id, venue_id)
         if detail is not None:
             return detail.name
         item: MenuItem | None = await self.menu_items.get_by_id(menu_item_id)
@@ -449,7 +423,7 @@ class BookingService:
         return f"#{item.id}"
 
     async def _build_services_in_transaction(
-        self, requested: Sequence[BookingServiceCreate], language_id: int
+        self, requested: Sequence[BookingServiceCreate]
     ) -> tuple[list[BookingServiceRow], Decimal]:
         rows: list[BookingServiceRow] = []
         total = Decimal("0")
@@ -472,25 +446,28 @@ class BookingService:
             )
         return rows, _money(total)
 
-    async def _assemble_price_in_transaction(
+    def _assemble_price(
         self,
         *,
-        user_id: int,
         venue_deposit_percent: Decimal | None,
         base_amount: Decimal,
         base_label: str,
         base_line_type: str,
         services_total: Decimal,
         service_rows: Sequence[BookingServiceRow],
-        promo_code: str | None,
         currency: str,
     ) -> _Quote:
-        """Base → services → subtotal → promo → subscription benefit → total →
-        deposit, with one frozen price line per component.
+        """Base → services → subtotal → total → deposit, with one frozen price line
+        per component.
+
+        Nothing reduces the price between subtotal and total, so the two are equal
+        by construction. Both are still carried, because the booking row stores both
+        and a receipt that showed only one number would hide the breakdown.
 
         The deposit is **subtracted** from the total, not added: it is a portion of
         the price paid up front, so adding it would charge the guest twice for the
-        same money.
+        same money. Its line is therefore negative and, unlike the others, does not
+        participate in the sum that produces the total.
         """
         lines: list[BookingPriceLine] = []
         order = 0
@@ -522,34 +499,7 @@ class BookingService:
             order += 1
 
         subtotal = _money(base_amount + services_total)
-        discount = Decimal("0")
-
-        application: PromoApplication | None = None
-        if promo_code:
-            application = await self.promo_codes.apply_in_transaction(
-                user_id=user_id, code=promo_code, subtotal=subtotal
-            )
-            discount = application.discount_amount
-
-        benefit_percent = await self.subscriptions.benefit_percent_in_transaction(user_id)
-        if benefit_percent > 0:
-            discount += _money(subtotal * benefit_percent / PERCENT)
-
-        discount = _money(min(discount, subtotal))
-        if discount > 0:
-            lines.append(
-                BookingPriceLine(
-                    sort_order=order,
-                    line_type=PriceLineType.DISCOUNT,
-                    label_snapshot="Chegirma",
-                    unit_price=discount,
-                    quantity=1,
-                    amount=-discount,
-                )
-            )
-            order += 1
-
-        total = _money(subtotal - discount)
+        total = subtotal
 
         deposit = Decimal("0")
         if venue_deposit_percent is not None and venue_deposit_percent > 0:
@@ -567,12 +517,10 @@ class BookingService:
 
         return _Quote(
             subtotal=subtotal,
-            discount=discount,
             deposit=deposit,
             total=total,
             currency=currency,
             lines=lines,
-            promo=application,
         )
 
     async def _detail_in_transaction(
@@ -598,17 +546,13 @@ class _Quote:
         self,
         *,
         subtotal: Decimal,
-        discount: Decimal,
         deposit: Decimal,
         total: Decimal,
         currency: str,
         lines: list[BookingPriceLine],
-        promo: PromoApplication | None = None,
     ) -> None:
         self.subtotal = subtotal
-        self.discount = discount
         self.deposit = deposit
         self.total = total
         self.currency = currency
         self.lines = lines
-        self.promo = promo

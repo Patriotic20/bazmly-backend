@@ -3,7 +3,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId, SessionDep, require_permission
+from app.core.dependencies import SessionDep, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.services.schemas import (
     ServiceCatalogRead,
     VenueServiceCreate,
@@ -23,10 +24,9 @@ router = APIRouter(prefix="/v1", tags=["services"])
 )
 async def list_catalog(
     session: SessionDep,
-    language_id: LanguageId,
     venue_type_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> Sequence[ServiceCatalogRead]:
-    return await VenueServiceCatalogService(session).list_catalog(language_id, venue_type_id)
+    return await VenueServiceCatalogService(session).list_catalog(venue_type_id)
 
 
 @router.post(
@@ -36,11 +36,10 @@ async def list_catalog(
     operation_id="venue_services_create",
     summary="Xizmatga narx belgilash",
     description="Filial narxi shu xizmat uchun tarmoq narxidan ustun turadi.",
-    dependencies=[require_permission("settings.edit")],
 )
 async def create_venue_service(
     payload: VenueServiceCreate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("settings.edit")],
     session: SessionDep,
     venue_id: Annotated[int, Query(ge=1)],
     group_id: Annotated[int, Query(ge=1)],

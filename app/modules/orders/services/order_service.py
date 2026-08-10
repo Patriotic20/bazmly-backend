@@ -134,7 +134,6 @@ class OrderService:
         venue_id: int,
         order_id: int,
         items: Sequence[OrderItemCreate],
-        language_id: int,
     ) -> OrderDetailRead:
         """Prices and names are snapshotted at insert.
 
@@ -152,9 +151,7 @@ class OrderService:
             unit_price = await self.menu_items.resolve_price(
                 entry.menu_item_id, venue_id, entry.variant_id
             )
-            detail = await self.menu_items.get_with_variants(
-                entry.menu_item_id, venue_id, language_id
-            )
+            detail = await self.menu_items.get_with_variants(entry.menu_item_id, venue_id)
             name = detail.name if detail is not None else f"#{entry.menu_item_id}"
             variant_name: str | None = None
             if entry.variant_id is not None and detail is not None:

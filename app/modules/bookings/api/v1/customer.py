@@ -1,10 +1,13 @@
 from collections.abc import Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Path, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId
-from app.modules.bookings.api.dependencies import BookingServiceDep
+from app.core.dependencies import CurrentUser
+from app.modules.bookings.api.dependencies import (
+    BookingServiceDep,
+    queue_booking_confirmation,
+)
 from app.modules.bookings.enums import BookingStatus
 from app.modules.bookings.schemas import (
     BookingCancel,
@@ -29,10 +32,12 @@ router = APIRouter(prefix="/v1/bookings", tags=["bookings"])
 async def create_table_reservation(
     payload: TableReservationCreate,
     user: CurrentUser,
-    language_id: LanguageId,
     service: BookingServiceDep,
+    background: BackgroundTasks,
 ) -> BookingOwnerDetail:
-    return await service.create_table_reservation(user.id, payload, language_id)
+    booking = await service.create_table_reservation(user.id, payload)
+    queue_booking_confirmation(background, booking)
+    return booking
 
 
 @router.post(
@@ -46,10 +51,12 @@ async def create_table_reservation(
 async def create_hall_event(
     payload: HallEventCreate,
     user: CurrentUser,
-    language_id: LanguageId,
     service: BookingServiceDep,
+    background: BackgroundTasks,
 ) -> BookingOwnerDetail:
-    return await service.create_hall_event(user.id, payload, language_id)
+    booking = await service.create_hall_event(user.id, payload)
+    queue_booking_confirmation(background, booking)
+    return booking
 
 
 @router.get(
@@ -63,11 +70,10 @@ async def create_hall_event(
 )
 async def list_mine(
     user: CurrentUser,
-    language_id: LanguageId,
     service: BookingServiceDep,
     statuses: Annotated[list[BookingStatus] | None, Query()] = None,
 ) -> Sequence[BookingListItem]:
-    return await service.list_for_user(user.id, language_id, statuses)
+    return await service.list_for_user(user.id, statuses)
 
 
 @router.get(

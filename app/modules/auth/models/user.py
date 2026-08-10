@@ -67,16 +67,12 @@ class User(IdIntPk, TimestampMixin, Base):
     )
     theme: Mapped[str] = mapped_column(String(10), default=UserTheme.SYSTEM, nullable=False)
 
-    # Staff credentials. Null for customers and social-only accounts.
+    # `login` is staff-only and issued by an invitation. `password_hash` is not:
+    # a customer may set one at registration, and then it is what `/auth/login`
+    # checks against their phone number. Null means the phone alone signs in.
     login: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    phone_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=False), nullable=True
-    )
-    email_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=False), nullable=True
-    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)

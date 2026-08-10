@@ -3,6 +3,7 @@ from app.modules.venue_groups.schemas.venue_group import (
     VenueGroupCreate,
     VenueGroupRead,
     VenueGroupUpdate,
+    VenueGroupWithBranchCreate,
     VenueGroupWithBranchesRead,
 )
 
@@ -11,5 +12,6 @@ __all__ = [
     "VenueGroupCreate",
     "VenueGroupRead",
     "VenueGroupUpdate",
+    "VenueGroupWithBranchCreate",
     "VenueGroupWithBranchesRead",
 ]

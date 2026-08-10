@@ -5,7 +5,6 @@ from app.core.exceptions import NotFoundError
 from app.modules.auth.enums import UserStatus
 from app.modules.auth.repositories import RefreshTokenRepository, UserRepository
 from app.modules.auth.schemas import UserProfileUpdate, UserRead
-from app.modules.payments.repositories import PaymentCardRepository
 from app.modules.reviews.repositories import ReviewRepository
 
 
@@ -14,7 +13,6 @@ class UserService:
         self.session = session
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
-        self.cards = PaymentCardRepository(session)
         self.reviews = ReviewRepository(session)
 
     async def get_profile(self, user_id: int) -> UserRead:
@@ -50,10 +48,9 @@ class UserService:
         """ "Akkauntni o'chirish" — a soft delete, in one transaction.
 
         Status and `deleted_at` are set, contact fields and credentials nulled,
-        every refresh token revoked, stored cards deleted and review text
-        anonymised. Bookings, orders and payments are deliberately untouched: a
-        hard delete would break financial history that the venue and the tax
-        authority both still need.
+        every refresh token revoked and review text anonymised. Bookings and
+        orders are deliberately untouched: a hard delete would break financial
+        history that the venue and the tax authority both still need.
 
         The phone is released rather than tombstoned so the number can be used to
         register again; the email becomes a non-routable tombstone because
@@ -66,7 +63,6 @@ class UserService:
             raise NotFoundError("Foydalanuvchi topilmadi")
 
         await self.tokens.revoke_all_for_user(user_id, now)
-        await self.cards.delete_all_for_user(user_id)
         await self.reviews.anonymise_for_user(user_id)
         await self.users.anonymise_and_soft_delete(user_id, now)
         await self.session.commit()

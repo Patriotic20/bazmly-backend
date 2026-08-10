@@ -1,14 +1,36 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, status
 
-from app.core.dependencies import CurrentUser, LanguageId, SessionDep, require_permission
+from app.core.dependencies import CurrentUser, SessionDep, require_permission
 from app.modules.venue_groups.schemas import (
     VenueGroupRead,
     VenueGroupUpdate,
+    VenueGroupWithBranchCreate,
     VenueGroupWithBranchesRead,
 )
 from app.modules.venue_groups.services import VenueGroupService
+from app.modules.venues.services import VenueOnboardingService
 
 router = APIRouter(prefix="/v1/venue/groups", tags=["venue:groups"])
+
+
+@router.post(
+    "",
+    response_model=VenueGroupWithBranchesRead,
+    status_code=status.HTTP_201_CREATED,
+    operation_id="venue_groups_create",
+    summary="Tarmoq yaratish",
+    description=(
+        "Tarmoq, uning birinchi filiali va chaqiruvchining egalik yozuvi — bitta "
+        "tranzaksiyada. Filialda `ichkari` va `tashqari` zonalari avtomatik ochiladi. "
+        "Bir egaga bitta tarmoq: takroriy so'rov 409 qaytaradi."
+    ),
+)
+async def create_group(
+    payload: VenueGroupWithBranchCreate,
+    user: CurrentUser,
+    session: SessionDep,
+) -> VenueGroupWithBranchesRead:
+    return await VenueOnboardingService(session).start(user.id, payload)
 
 
 @router.get(
@@ -30,9 +52,9 @@ async def get_mine(user: CurrentUser, session: SessionDep) -> VenueGroupRead:
     description="Boshqaruv panelidagi tarmoq nomi va uning barcha filiallari.",
 )
 async def get_with_branches(
-    user: CurrentUser, language_id: LanguageId, session: SessionDep, group_id: int
+    user: CurrentUser, session: SessionDep, group_id: int
 ) -> VenueGroupWithBranchesRead:
-    return await VenueGroupService(session).get_with_branches(group_id, language_id)
+    return await VenueGroupService(session).get_with_branches(group_id)
 
 
 @router.patch(
@@ -48,6 +70,6 @@ async def get_with_branches(
     dependencies=[require_permission("settings.edit")],
 )
 async def update_group(
-    payload: VenueGroupUpdate, user: CurrentUser, session: SessionDep, group_id: int
+    payload: VenueGroupUpdate, session: SessionDep, group_id: int
 ) -> VenueGroupRead:
     return await VenueGroupService(session).update_details(group_id, payload)

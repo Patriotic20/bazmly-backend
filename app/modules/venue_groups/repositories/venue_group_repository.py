@@ -2,12 +2,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Subquery, case, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.localization.models import Language
-from app.modules.venue_groups.models import VenueGroup, VenueGroupTranslation
-from app.modules.venues.models import Venue, VenueTranslation
+from app.modules.venue_groups.models import VenueGroup
+from app.modules.venues.models import Venue
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,43 +30,6 @@ class VenueGroupRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def _group_translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (VenueGroupTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                VenueGroupTranslation.venue_group_id.label("venue_group_id"),
-                VenueGroupTranslation.name.label("name"),
-            )
-            .join(Language, Language.id == VenueGroupTranslation.language_id)
-            .distinct(VenueGroupTranslation.venue_group_id)
-            .order_by(VenueGroupTranslation.venue_group_id, priority)
-            .subquery()
-        )
-
-    def _branch_translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (VenueTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                VenueTranslation.venue_id.label("venue_id"),
-                VenueTranslation.name.label("name"),
-                VenueTranslation.tagline.label("tagline"),
-            )
-            .join(Language, Language.id == VenueTranslation.language_id)
-            .distinct(VenueTranslation.venue_id)
-            .order_by(VenueTranslation.venue_id, priority)
-            .subquery()
-        )
-
     async def get_by_id(self, group_id: int) -> VenueGroup | None:
         result = await self.session.execute(select(VenueGroup).where(VenueGroup.id == group_id))
         return result.scalar_one_or_none()
@@ -78,23 +40,15 @@ class VenueGroupRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_with_branches(
-        self, group_id: int, language_id: int
-    ) -> VenueGroupWithBranches | None:
-        group_translations = self._group_translation_subquery(language_id)
+    async def get_with_branches(self, group_id: int) -> VenueGroupWithBranches | None:
         head = await self.session.execute(
-            select(VenueGroup, group_translations.c.name)
-            .outerjoin(group_translations, group_translations.c.venue_group_id == VenueGroup.id)
-            .where(VenueGroup.id == group_id)
+            select(VenueGroup, VenueGroup.name).where(VenueGroup.id == group_id)
         )
         row = head.one_or_none()
         if row is None:
             return None
-
-        branch_translations = self._branch_translation_subquery(language_id)
         branches = await self.session.execute(
-            select(Venue, branch_translations.c.name, branch_translations.c.tagline)
-            .outerjoin(branch_translations, branch_translations.c.venue_id == Venue.id)
+            select(Venue, Venue.name, Venue.tagline)
             .where(Venue.venue_group_id == group_id)
             .order_by(Venue.id)
         )
@@ -105,11 +59,7 @@ class VenueGroupRepository:
         )
 
     async def create_with_first_branch(
-        self,
-        group: VenueGroup,
-        group_translations: Sequence[VenueGroupTranslation],
-        venue: Venue,
-        venue_translations: Sequence[VenueTranslation],
+        self, group: VenueGroup, venue: Venue
     ) -> tuple[VenueGroup, Venue]:
         """Group and first branch in one flush.
 
@@ -120,18 +70,8 @@ class VenueGroupRepository:
         self.session.add(group)
         await self.session.flush()
 
-        for translation in group_translations:
-            translation.venue_group_id = group.id
-            self.session.add(translation)
-
         venue.venue_group_id = group.id
         self.session.add(venue)
-        await self.session.flush()
-
-        for venue_translation in venue_translations:
-            venue_translation.venue_id = venue.id
-            self.session.add(venue_translation)
-
         await self.session.flush()
         return group, venue
 
@@ -146,8 +86,3 @@ class VenueGroupRepository:
         )
         await self.session.flush()
         return result.scalars().one_or_none()
-
-    async def add_translation(self, translation: VenueGroupTranslation) -> VenueGroupTranslation:
-        self.session.add(translation)
-        await self.session.flush()
-        return translation

@@ -74,21 +74,13 @@ class UserRepository:
         await self.session.flush()
         return user
 
-    async def mark_phone_verified(self, user_id: int, now: datetime) -> User | None:
+    async def set_password(self, user_id: int, password_hash: str) -> User | None:
+        """Set or replace the password. `must_change_password` clears with it —
+        the person has just chosen this one, so there is nothing left to force."""
         result = await self.session.execute(
             update(User)
             .where(User.id == user_id, User.deleted_at.is_(None))
-            .values(phone_verified_at=now)
-            .returning(User)
-        )
-        await self.session.flush()
-        return result.scalars().one_or_none()
-
-    async def mark_email_verified(self, user_id: int, now: datetime) -> User | None:
-        result = await self.session.execute(
-            update(User)
-            .where(User.id == user_id, User.deleted_at.is_(None))
-            .values(email_verified_at=now)
+            .values(password_hash=password_hash, must_change_password=False)
             .returning(User)
         )
         await self.session.flush()
@@ -101,9 +93,9 @@ class UserRepository:
     async def soft_delete(self, user_id: int, now: datetime) -> User | None:
         """ "Akkauntni o'chirish" — status and timestamp set, identifiers nulled.
 
-        Bookings and payments stay for accounting; a hard delete would break
-        financial history. Revoking tokens and cards is the service's job, since
-        those live in other aggregates.
+        Bookings and orders stay for accounting; a hard delete would break
+        financial history. Revoking tokens is the service's job, since those
+        live in another aggregate.
         """
         result = await self.session.execute(
             update(User)
@@ -177,8 +169,8 @@ class UserRepository:
         non-identifying tombstone at the reserved `.invalid` TLD, which satisfies
         the constraint and can never route anywhere.
 
-        Bookings, orders and payments are untouched: a hard delete would break
-        financial history.
+        Bookings and orders are untouched: a hard delete would break financial
+        history.
         """
         result = await self.session.execute(
             update(User)

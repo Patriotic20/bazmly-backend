@@ -9,7 +9,6 @@ from app.modules.auth.models.auth_identity import AuthProvider
 from app.modules.auth.models.device import DevicePlatform
 from app.modules.auth.models.friendship import FriendshipStatus
 from app.modules.auth.models.user import UserRole, UserStatus, UserTheme
-from app.modules.auth.models.verification_code import VerificationChannel, VerificationPurpose
 
 __all__ = [
     "AuthProvider",
@@ -18,6 +17,4 @@ __all__ = [
     "UserRole",
     "UserStatus",
     "UserTheme",
-    "VerificationChannel",
-    "VerificationPurpose",
 ]

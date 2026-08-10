@@ -4,14 +4,10 @@ from datetime import time
 from decimal import Decimal
 
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.menu.models import MenuItem
 from app.modules.staff.models import (
-    Permission,
-    StaffRole,
-    StaffRolePermission,
     VenueStaff,
 )
 from app.modules.venues.models import Venue, VenueTable
@@ -19,18 +15,6 @@ from tests.api.conftest import auth_header
 from tests.repositories import factories
 
 ITEM_PRICE = Decimal("50000.00")
-
-
-async def grant(session: AsyncSession, role_slug: str, *slugs: str) -> None:
-    role = (
-        await session.execute(select(StaffRole).where(StaffRole.slug == role_slug))
-    ).scalar_one()
-    for slug in slugs:
-        permission = (
-            await session.execute(select(Permission).where(Permission.slug == slug))
-        ).scalar_one()
-        session.add(StaffRolePermission(staff_role_id=role.id, permission_id=permission.id))
-    await session.flush()
 
 
 async def make_order_env(
@@ -41,7 +25,7 @@ async def make_order_env(
     await factories.make_working_hours(session, venue, time(8, 0), time(23, 0))
     table = await factories.make_table(session, venue, number=1, seats=4)
     staff = await factories.make_staff(session, venue, group, role_slug="waiter")
-    await grant(session, "waiter", "orders.open", "orders.add_items", "orders.close")
+    await factories.grant(session, "waiter", "orders.open", "orders.add_items", "orders.close")
     item = await factories.make_menu_item(session, group, base_price=ITEM_PRICE)
     await factories.make_menu_branch(session, item, venue)
     return venue, table, staff, item

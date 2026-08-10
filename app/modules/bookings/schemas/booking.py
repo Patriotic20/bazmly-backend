@@ -4,7 +4,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.core.schemas import Money, PhoneNumber, PromoCodeStr, ReadSchema, UpdateSchema
+from app.core.schemas import Money, PhoneNumber, ReadSchema, UpdateSchema
 from app.modules.bookings.enums import BookingKind, BookingStatus
 from app.modules.bookings.schemas.booking_item import BookingItemCreate, BookingItemRead
 from app.modules.bookings.schemas.booking_service import (
@@ -30,7 +30,6 @@ class _BookingCreateBase(BaseModel):
     contact_name: str = Field(min_length=1, max_length=200)
     contact_phone: PhoneNumber
     note: str | None = None
-    promo_code: PromoCodeStr | None = None
     services: list[BookingServiceCreate] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -103,7 +102,6 @@ class BookingRead(ReadSchema):
     contact_phone: str
     note: str | None = None
     subtotal: Money
-    discount_amount: Money
     deposit_amount: Money
     total_amount: Money
     currency: str
@@ -142,10 +140,13 @@ class BookingSearchParams(BaseModel):
 
 
 class PriceQuote(ReadSchema):
-    """Bron yozilishidan oldin ko'rsatiladigan narx hisobi."""
+    """Bron yozilishidan oldin ko'rsatiladigan narx hisobi.
+
+    `deposit_amount` — `total_amount` ning oldindan to'lanadigan qismi, unga
+    qo'shimcha emas; shuning uchun u yig'indini oshirmaydi.
+    """
 
     subtotal: Money
-    discount_amount: Money
     deposit_amount: Money
     total_amount: Money
     currency: str

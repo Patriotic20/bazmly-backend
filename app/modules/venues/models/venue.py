@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     SmallInteger,
     String,
+    Text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +42,12 @@ class Venue(IdIntPk, TimestampMixin, Base):
 
     __tablename__ = "venues"
     __table_args__ = (
+        Index(
+            "ix_venues_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
         Index("ix_venues_location", "location", postgresql_using="gist"),
         Index("ix_venues_venue_group_id_status", "venue_group_id", "status"),
         CheckConstraint(
@@ -78,3 +85,6 @@ class Venue(IdIntPk, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(20), default=VenueStatus.DRAFT, nullable=False)
     onboarding_step: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     onboarded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tagline: Mapped[str | None] = mapped_column(String(120), nullable=True)

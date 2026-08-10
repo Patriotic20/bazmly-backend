@@ -108,16 +108,12 @@ class Booking(IdIntPk, TimestampMixin, Base):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
-    discount_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     deposit_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     deposit_paid_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=False), nullable=True
     )
     total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="UZS", nullable=False)
-    promo_code_id: Mapped[int | None] = mapped_column(
-        ForeignKey("promo_codes.id", ondelete="SET NULL"), nullable=True
-    )
 
     receipt_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     ticket_code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False)

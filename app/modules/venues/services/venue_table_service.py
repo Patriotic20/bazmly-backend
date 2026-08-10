@@ -27,14 +27,14 @@ class VenueTableService:
         rows = await self.tables.list_for_venue(venue_id, zone_id)
         return [VenueTableRead.model_validate(row) for row in rows]
 
-    async def list_zones(self, venue_id: int, language_id: int) -> Sequence[VenueZoneRead]:
-        rows = await self.zones.list_for_venue(venue_id, language_id)
+    async def list_zones(self, venue_id: int) -> Sequence[VenueZoneRead]:
+        rows = await self.zones.list_for_venue(venue_id)
         return [
             VenueZoneRead(
-                id=row.zone.id,
-                slug=row.zone.slug,
+                id=row.id,
+                slug=row.slug,
                 name=row.name,
-                sort_order=row.zone.sort_order,
+                sort_order=row.sort_order,
             )
             for row in rows
         ]

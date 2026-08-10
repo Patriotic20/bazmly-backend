@@ -31,3 +31,5 @@ class VenueGroup(IdIntPk, TimestampMixin, Base):
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_currency: Mapped[str] = mapped_column(String(3), default="UZS", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default=VenueGroupStatus.DRAFT, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)

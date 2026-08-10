@@ -3,6 +3,21 @@
 These rules are not stylistic preferences. They are what keeps the codebase
 navigable as modules multiply. Follow them exactly.
 
+## Language
+
+Content is **Uzbek only**. There are no `*_translations` tables — a name lives on
+its own row (`venues.name`, `menu_items.name`). Do not add a `language_id`
+parameter to a repository or service; if a second content language is ever needed
+that is a schema decision, not a per-query one.
+
+`languages` and `users.language_id` are the exception and are *not* content: they
+are the account's interface-language preference, which the client reads to pick its
+own strings.
+
+User-facing prose — route summaries, descriptions, schema class docstrings, error
+`message` values — is Uzbek, with ASCII apostrophes (`'`, never `’`). Machine-readable
+values stay English: `code`, `operation_id`, tag names, `details` keys, enum values.
+
 ## 1. One thing per file
 
 - **One model = one file.** Never two ORM models in one file. Association /
@@ -199,9 +214,8 @@ Uzbek: route `summary` / `description`, `openapi_tags` descriptions, the app
 Swagger or in a response body.
 
 English: exception `code` values, `details` keys, `operation_id`, tag names, enum
-values, field names, log messages, code comments, **module and function
-docstrings**, and the Payme / Click webhook response bodies — those last are a
-provider protocol, not prose, and translating them breaks settlement.
+values, field names, log messages, code comments, and **module and function
+docstrings**.
 
 Clients branch on `code`. `message` is display text and carries no contract.
 

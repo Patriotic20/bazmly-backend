@@ -1,128 +1,139 @@
 import hashlib
 from datetime import datetime, timedelta
-from typing import NoReturn
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.mixins import utcnow_naive
 from app.core.exceptions import (
-    CodeExpiredError,
-    InvalidCodeError,
+    InvalidSocialTokenError,
     NotFoundError,
     PermissionDeniedError,
-    TooManyAttemptsError,
+    PhoneAlreadyRegisteredError,
     ValidationFailedError,
+)
+from app.core.integrations.google import (
+    GoogleAuthError,
+    GoogleIdentity,
+    GoogleNotConfiguredError,
+    get_google_verifier,
 )
 from app.core.integrity import translate_integrity_error
 from app.core.security import (
-    generate_numeric_code,
     generate_token,
     hash_secret,
     verify_secret,
 )
-from app.core.transports import get_sms_sender
-from app.modules.auth.enums import UserRole, UserStatus, VerificationChannel
-from app.modules.auth.models import AuthIdentity, RefreshToken, User, VerificationCode
+from app.modules.auth.enums import AuthProvider, UserRole, UserStatus
+from app.modules.auth.models import AuthIdentity, RefreshToken, User
 from app.modules.auth.repositories import (
     AuthIdentityRepository,
     RefreshTokenRepository,
     UserRepository,
-    VerificationCodeRepository,
 )
 from app.modules.auth.schemas import (
-    OtpRequest,
-    OtpRequested,
-    OtpVerify,
-    SocialLogin,
+    GoogleLogin,
+    PasswordChange,
+    PhoneCheck,
+    PhoneCheckResult,
+    PhoneLogin,
+    PhoneRegister,
     StaffLogin,
     TokenPair,
 )
 from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE, LanguageRepository
 
-CODE_TTL = timedelta(minutes=15)
-THROTTLE_WINDOW = timedelta(minutes=10)
-MAX_CODES_PER_WINDOW = 3
-MAX_VERIFY_ATTEMPTS = 5
-
 ACCESS_TOKEN_TTL = timedelta(minutes=30)
 REFRESH_TOKEN_TTL = timedelta(days=30)
+
+# The same string for a wrong password and an unknown login, on purpose: telling
+# them apart turns the endpoint into a "does this account exist" oracle.
+BAD_CREDENTIALS = "Login yoki parol noto'g'ri"
 
 
 class AuthService:
     """Registration, sign-in and token lifecycle.
 
-    The registration state machine is the load-bearing part: **no `users` row
-    exists until a code has been verified**. Creating one at "request code" would
-    let anyone mint rows for phone numbers they do not control, and would make
-    `users.phone` unique-collide with a number the real owner later tries to use.
+    Sign-in starts from a phone number and nothing else. `check_phone` says
+    whether that number is known and whether it carries a password, and the
+    client sends the person to `register` or to `login` accordingly. A password
+    is optional: an account without one is reachable by phone alone, which is the
+    trade the product made when it dropped SMS verification.
+
+    Phone numbers arrive already in E.164 — the `PhoneNumber` schema type
+    normalises `901234567`, `998901234567` and `+998 90 123-45-67` to the same
+    string before this layer sees any of them, so the lookups here cannot miss an
+    account because of formatting.
     """
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.users = UserRepository(session)
-        self.codes = VerificationCodeRepository(session)
         self.tokens = RefreshTokenRepository(session)
         self.identities = AuthIdentityRepository(session)
         self.languages = LanguageRepository(session)
 
-    async def request_code(self, payload: OtpRequest) -> OtpRequested:
-        """Throttled at three per ten minutes, per destination and purpose.
+    async def check_phone(self, payload: PhoneCheck) -> PhoneCheckResult:
+        """Which of the two next screens the client should show. No token."""
+        user = await self.users.get_by_phone(payload.phone)
+        return PhoneCheckResult(
+            phone=payload.phone,
+            registered=user is not None,
+            password_required=user is not None and user.password_hash is not None,
+        )
 
-        The stored value is a hash; the plaintext exists only long enough to hand
-        to the SMS transport and is never logged or returned.
+    async def register(self, payload: PhoneRegister) -> TokenPair:
+        """Create the account and sign in, in one step.
+
+        The name arrives with the request, so the account is `active` immediately
+        — `pending_profile` now only exists for Google accounts that arrive with
+        no name at all.
         """
         now = utcnow_naive()
-        recent = await self.codes.count_recent(
-            payload.destination, payload.purpose, now - THROTTLE_WINDOW
-        )
-        if recent >= MAX_CODES_PER_WINDOW:
-            raise TooManyAttemptsError(
-                "Kod juda ko'p so'raldi. Bir necha daqiqadan keyin urinib ko'ring",
-                details={"retry_after_seconds": int(THROTTLE_WINDOW.total_seconds())},
-            )
+        existing = await self.users.get_by_phone(payload.phone)
+        if existing is not None:
+            raise PhoneAlreadyRegisteredError()
 
-        code = generate_numeric_code()
-        await self.codes.create(
-            VerificationCode(
-                channel=payload.channel,
-                destination=payload.destination,
-                code_hash=hash_secret(code),
-                purpose=payload.purpose,
-                attempts_count=0,
-                expires_at=now + CODE_TTL,
+        language_id = payload.language_id or await self._default_language_id()
+        try:
+            user = await self.users.create(
+                User(
+                    first_name=payload.first_name,
+                    last_name=payload.last_name,
+                    phone=payload.phone,
+                    language_id=language_id,
+                    district_id=payload.district_id,
+                    role=UserRole.CUSTOMER,
+                    status=UserStatus.ACTIVE,
+                    password_hash=hash_secret(payload.password) if payload.password else None,
+                    must_change_password=False,
+                )
             )
-        )
+        except IntegrityError as error:
+            # Two requests for the same new number can both pass the check above;
+            # the unique index is what actually decides, and this turns its error
+            # into the same 409 the check would have produced.
+            raise translate_integrity_error(error) from error
+
+        await self.users.touch_last_login(user.id, now)
+        pair = await self._issue_tokens_in_transaction(user, now)
         await self.session.commit()
+        return pair
 
-        if payload.channel == VerificationChannel.SMS:
-            await get_sms_sender().send(payload.destination, f"Bazmly tasdiqlash kodi: {code}")
-
-        return OtpRequested(
-            destination=payload.destination,
-            expires_in_seconds=int(CODE_TTL.total_seconds()),
-        )
-
-    async def verify_code(self, payload: OtpVerify) -> TokenPair:
-        """Consume a code and issue tokens, creating the user on first success."""
+    async def login(self, payload: PhoneLogin) -> TokenPair:
+        """Phone, plus a password only if the account has one."""
         now = utcnow_naive()
-        record = await self.codes.get_active(payload.destination, payload.purpose, now)
-        if record is None:
-            raise CodeExpiredError()
-
-        if record.attempts_count >= MAX_VERIFY_ATTEMPTS:
-            raise TooManyAttemptsError()
-
-        if not verify_secret(payload.code, record.code_hash):
-            await self._register_failed_attempt(record.id)
-
-        await self.codes.consume(record.id, now)
-
-        user = await self.users.get_by_phone(payload.destination)
+        user = await self.users.get_by_phone(payload.phone)
         if user is None:
-            user = await self._create_pending_user_in_transaction(payload.destination)
+            raise PermissionDeniedError(BAD_CREDENTIALS)
 
-        await self.users.mark_phone_verified(user.id, now)
+        if user.password_hash is not None and not (
+            payload.password and verify_secret(payload.password, user.password_hash)
+        ):
+            raise PermissionDeniedError(BAD_CREDENTIALS)
+
+        self._require_usable(user)
+
         await self.users.touch_last_login(user.id, now)
         pair = await self._issue_tokens_in_transaction(user, now)
         await self.session.commit()
@@ -133,9 +144,9 @@ class AuthService:
         now = utcnow_naive()
         user = await self.users.get_by_login(payload.login)
         if user is None or user.password_hash is None:
-            raise PermissionDeniedError("Login yoki parol noto'g'ri")
+            raise PermissionDeniedError(BAD_CREDENTIALS)
         if not verify_secret(payload.password, user.password_hash):
-            raise PermissionDeniedError("Login yoki parol noto'g'ri")
+            raise PermissionDeniedError(BAD_CREDENTIALS)
         if user.status != UserStatus.ACTIVE:
             raise PermissionDeniedError("Bu akkaunt faol emas")
 
@@ -144,47 +155,75 @@ class AuthService:
         await self.session.commit()
         return pair
 
-    async def social_login(self, payload: SocialLogin) -> TokenPair:
-        """Apple or Google.
+    async def google_login(self, payload: GoogleLogin) -> TokenPair:
+        """Sign in with a Google `id_token` we verify ourselves.
 
-        An unknown provider id whose email matches an existing account links a new
-        identity to that account rather than creating a second user — otherwise
-        signing in with Google after signing up by phone silently forks the
-        person's bookings across two rows.
+        Every claim acted on here comes out of the verified token. The account is
+        keyed on Google's `sub`; the email is used to link a Google identity to an
+        account someone already made by phone, but only when Google says it
+        verified that email — an unverified one is an address the person merely
+        typed, and matching on it would hand over the account it belongs to.
         """
         now = utcnow_naive()
-        identity = await self.identities.get_by_provider(payload.provider, payload.provider_user_id)
+        identity_claims = await self._verify_google(payload.id_token)
 
+        identity = await self.identities.get_by_provider(
+            AuthProvider.GOOGLE, identity_claims.subject
+        )
         if identity is not None:
             user = await self.users.get_by_id(identity.user_id)
             if user is None:
                 raise NotFoundError("Bog'langan akkaunt endi mavjud emas")
         else:
             user = None
-            if payload.provider_email:
-                user = await self.users.get_by_email(payload.provider_email)
+            if identity_claims.email and identity_claims.email_verified:
+                user = await self.users.get_by_email(identity_claims.email)
             if user is None:
-                user = await self._create_social_user_in_transaction(payload)
+                user = await self._create_google_user_in_transaction(identity_claims)
             await self.identities.create(
                 AuthIdentity(
                     user_id=user.id,
-                    provider=payload.provider,
-                    provider_user_id=payload.provider_user_id,
-                    provider_email=payload.provider_email,
+                    provider=AuthProvider.GOOGLE,
+                    provider_user_id=identity_claims.subject,
+                    provider_email=identity_claims.email,
                 )
             )
+
+        self._require_usable(user)
 
         await self.users.touch_last_login(user.id, now)
         pair = await self._issue_tokens_in_transaction(user, now)
         await self.session.commit()
         return pair
 
+    async def set_password(self, user_id: int, payload: PasswordChange) -> None:
+        """Set a first password, or change an existing one.
+
+        Changing requires the current one. Setting the first does not — there is
+        nothing to prove, and the bearer token already proves as much as any
+        password would.
+        """
+        user = await self.users.get_by_id(user_id)
+        if user is None:
+            raise NotFoundError("Foydalanuvchi topilmadi")
+
+        if user.password_hash is not None and not (
+            payload.current_password and verify_secret(payload.current_password, user.password_hash)
+        ):
+            raise PermissionDeniedError("Joriy parol noto'g'ri")
+
+        now = utcnow_naive()
+        await self.users.set_password(user_id, hash_secret(payload.new_password))
+        # Every other session dies with the old password. If the change was a
+        # response to a compromise, leaving the attacker's refresh token alive
+        # would make the change pointless.
+        await self.tokens.revoke_all_for_user(user_id, now)
+        await self.session.commit()
+
     async def refresh(self, refresh_token: str) -> TokenPair:
         now = utcnow_naive()
         stored = await self.tokens.get_by_hash(hash_lookup(refresh_token))
 
-        # TODO(service): family revocation on reuse was added by the API task —
-        # see DECISIONS.md.
         if stored is not None and stored.revoked_at is not None:
             # A revoked token being presented means it leaked: the legitimate
             # holder already rotated past it, so whoever sent this one copied it.
@@ -200,6 +239,7 @@ class AuthService:
         user = await self.users.get_by_id(stored.user_id)
         if user is None:
             raise NotFoundError("Akkaunt endi mavjud emas")
+        self._require_usable(user)
 
         # Rotation: the presented token dies as the replacement is minted, so a
         # stolen token is usable at most once and its reuse is detectable.
@@ -208,59 +248,58 @@ class AuthService:
         await self.session.commit()
         return pair
 
-    async def logout(self, user_id: int, all_devices: bool = False) -> None:
+    async def logout(self, user_id: int, refresh_token: str) -> None:
+        """Revoke the presented refresh token — this device only.
+
+        The token has to be presented: an access token names the user but not the
+        session, so without it there is nothing to identify which of the person's
+        devices is signing out.
+        """
         now = utcnow_naive()
-        if all_devices:
-            await self.tokens.revoke_all_for_user(user_id, now)
+        stored = await self.tokens.get_by_hash(hash_lookup(refresh_token))
+        # Someone else's token is not this caller's to revoke.
+        if stored is not None and stored.user_id == user_id and stored.revoked_at is None:
+            await self.tokens.revoke(stored.id, now)
+        await self.session.commit()
+
+    async def logout_all(self, user_id: int) -> None:
+        now = utcnow_naive()
+        await self.tokens.revoke_all_for_user(user_id, now)
         await self.session.commit()
 
     # --- internals -----------------------------------------------------------
 
-    async def _register_failed_attempt(self, code_id: int) -> NoReturn:
-        """Persist the attempt, then raise.
+    @staticmethod
+    def _require_usable(user: User) -> None:
+        """`pending_profile` may still sign in — completing the profile is the
+        next screen, and refusing the token would make it unreachable."""
+        if user.status in (UserStatus.BLOCKED, UserStatus.DELETED):
+            raise PermissionDeniedError("Bu akkaunt faol emas")
 
-        The commit is not optional: raising without it would roll the increment
-        back, the counter would never advance and the five-attempt lockout would
-        never fire — an attacker could guess indefinitely.
-        """
-        attempts = await self.codes.increment_attempts(code_id)
-        await self.session.commit()
-        if attempts is not None and attempts >= MAX_VERIFY_ATTEMPTS:
-            raise TooManyAttemptsError()
-        raise InvalidCodeError()
-
-    async def _create_pending_user_in_transaction(self, phone: str) -> User:
-        """First successful verification. `pending_profile` until a name is set."""
+    async def _default_language_id(self) -> int:
         language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
         if language is None:
             raise ValidationFailedError("Asosiy til sozlanmagan")
-        try:
-            return await self.users.create(
-                User(
-                    first_name="",
-                    last_name="",
-                    phone=phone,
-                    language_id=language.id,
-                    role=UserRole.CUSTOMER,
-                    status=UserStatus.PENDING_PROFILE,
-                    must_change_password=False,
-                )
-            )
-        except IntegrityError as error:
-            raise translate_integrity_error(error) from error
+        return language.id
 
-    async def _create_social_user_in_transaction(self, payload: SocialLogin) -> User:
-        language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
-        if language is None:
-            raise ValidationFailedError("Asosiy til sozlanmagan")
-        has_name = bool(payload.first_name)
+    async def _verify_google(self, id_token: str) -> GoogleIdentity:
+        try:
+            return await get_google_verifier().verify(id_token)
+        except GoogleNotConfiguredError as error:
+            raise ValidationFailedError("Google orqali kirish yoqilmagan") from error
+        except GoogleAuthError as error:
+            raise InvalidSocialTokenError(details={"reason": str(error)}) from error
+
+    async def _create_google_user_in_transaction(self, identity: GoogleIdentity) -> User:
+        has_name = bool(identity.first_name)
+        language_id = await self._default_language_id()
         try:
             return await self.users.create(
                 User(
-                    first_name=payload.first_name or "",
-                    last_name=payload.last_name or "",
-                    email=payload.provider_email,
-                    language_id=language.id,
+                    first_name=identity.first_name,
+                    last_name=identity.last_name,
+                    email=identity.email,
+                    language_id=language_id,
                     role=UserRole.CUSTOMER,
                     status=UserStatus.ACTIVE if has_name else UserStatus.PENDING_PROFILE,
                     must_change_password=False,
@@ -284,6 +323,7 @@ class AuthService:
             expires_in_seconds=int(ACCESS_TOKEN_TTL.total_seconds()),
             user_id=user.id,
             must_change_password=user.must_change_password,
+            profile_completed=user.status != UserStatus.PENDING_PROFILE,
         )
 
 

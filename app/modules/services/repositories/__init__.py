@@ -1,6 +1,5 @@
 from app.modules.services.repositories.service_catalog_repository import (
     ServiceCatalogRepository,
-    ServiceCatalogRow,
 )
 from app.modules.services.repositories.venue_service_repository import (
     VenueServiceRepository,
@@ -10,7 +9,6 @@ from app.modules.services.repositories.venue_service_repository import (
 
 __all__ = [
     "ServiceCatalogRepository",
-    "ServiceCatalogRow",
     "VenueServiceRepository",
     "VenueServiceRow",
     "VenueServiceWithItems",

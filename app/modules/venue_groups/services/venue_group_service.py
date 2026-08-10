@@ -1,7 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.modules.venue_groups.models import VenueGroup
 from app.modules.venue_groups.repositories import VenueGroupRepository
 from app.modules.venue_groups.schemas import (
     BranchListItem,
@@ -22,18 +21,14 @@ class VenueGroupService:
         group = await self.groups.get_by_owner(owner_id)
         if group is None:
             raise NotFoundError("Sizda hali tarmoq yo'q")
-        return _group_read(group)
+        return VenueGroupRead.model_validate(group)
 
-    async def get_with_branches(
-        self, group_id: int, language_id: int
-    ) -> VenueGroupWithBranchesRead:
-        result = await self.groups.get_with_branches(group_id, language_id)
+    async def get_with_branches(self, group_id: int) -> VenueGroupWithBranchesRead:
+        result = await self.groups.get_with_branches(group_id)
         if result is None:
             raise NotFoundError("Tarmoq topilmadi")
         return VenueGroupWithBranchesRead(
-            group=VenueGroupRead.model_validate(result.group).model_copy(
-                update={"name": result.name}
-            ),
+            group=VenueGroupRead.model_validate(result.group),
             branches=[
                 BranchListItem(
                     id=branch.venue.id,
@@ -50,10 +45,4 @@ class VenueGroupService:
         if updated is None:
             raise NotFoundError("Tarmoq topilmadi")
         await self.session.commit()
-        return _group_read(updated)
-
-
-# TODO(service): fixed by the API task — same missing-translation problem as
-# `_venue_read`. See DECISIONS.md.
-def _group_read(group: VenueGroup, name: str = "") -> VenueGroupRead:
-    return VenueGroupRead.model_validate({**group.__dict__, "name": name})
+        return VenueGroupRead.model_validate(updated)

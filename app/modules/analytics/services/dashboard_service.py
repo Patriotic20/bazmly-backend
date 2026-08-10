@@ -37,13 +37,11 @@ class DashboardService:
         self.stats = VenueDailyStatsRepository(session)
         self.analytics = AnalyticsService(session)
 
-    async def owner_home(
-        self, group_id: int, language_id: int, venue_id: int | None = None
-    ) -> DashboardRead:
+    async def owner_home(self, group_id: int, venue_id: int | None = None) -> DashboardRead:
         now = utcnow_naive()
         today = now.date()
 
-        group_detail = await self.groups.get_with_branches(group_id, language_id)
+        group_detail = await self.groups.get_with_branches(group_id)
         if group_detail is None:
             raise NotFoundError("Tarmoq topilmadi")
 

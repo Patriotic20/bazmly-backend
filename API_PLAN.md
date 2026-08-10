@@ -11,7 +11,7 @@ Routers, endpoints, dependencies and OpenAPI metadata. Version before module:
 # app/core/router.py                        -> APIRouter(prefix="/api") including every module router
 ```
 
-`v2/router.py` exists in all 17 modules with no endpoints — a placeholder, never a
+`v2/router.py` exists in all 15 modules with no endpoints — a placeholder, never a
 mirror of v1.
 
 Where a module serves both audiences, `v1/` splits into `customer.py` and
@@ -42,9 +42,10 @@ credential with no row is a transport concern. See DECISIONS.md.
 | Name | Purpose |
 | --- | --- |
 | `get_session` | Wraps `db_helper.session_getter`. The only place a session enters a request. |
-| `get_current_user` | Decodes the access token, loads the user, rejects non-`active` and soft-deleted. Raises `PermissionDeniedError`, never `HTTPException`. |
+| `get_current_user` | Decodes the access token, loads the user, rejects non-`active` and soft-deleted. Raises `AuthenticationRequiredError` (401) for a missing or unreadable token and `PermissionDeniedError` (403) for a blocked account, never `HTTPException`. |
 | `get_current_user_optional` | For endpoints that personalise but do not require auth (venue search, venue detail). |
-| `require_permission(slug)` | Dependency **factory**. Resolves the user, reads `venue_id` from path or query, calls `StaffService.require_permission_in_transaction`. Group scope satisfies venue scope. |
+| `require_permission(slug)` | `Depends(PermissionRequired(slug))`. Resolves the user, reads `venue_id` from path or query, calls `StaffService.require_permission_in_transaction`, and **returns the user**. Group scope satisfies venue scope. In a signature it replaces `user: CurrentUser`; in `dependencies=[...]` it only guards. |
+| `require_group_permission(slug)` | `Depends(GroupPermissionRequired(slug))`. The same, resolving `group_id` — for routes that create a branch, which have no `venue_id` yet. |
 | `get_language_id` | `Accept-Language` → authenticated user's `language_id` → `uz`. |
 | `get_pagination` | `limit` (20, max 100) and `offset`, as a frozen dataclass. |
 | `get_client_location` | Optional `lat`/`lng`, validated as a pair — both or neither. |
@@ -54,8 +55,12 @@ Per-module `api/dependencies.py` holds thin service factories only.
 ## Error envelope
 
 One handler per `DomainError` subclass in `app/core/handlers.py`, mapping to
-404 / 403 / 409 / 422 / 429. Body is always
+401 / 403 / 404 / 409 / 422 / 429. Body is always
 `{"code", "message", "details", "request_id"}`.
+
+401 and 403 divide on whether signing in again would help: no token or an
+unreadable one is a 401, a caller we identified and still refuse — blocked
+account, missing permission — is a 403.
 
 ## Routes
 
@@ -65,14 +70,21 @@ One handler per `DomainError` subclass in `app/core/handlers.py`, mapping to
 ### auth — `/v1/auth`
 | Method | Path | Auth | Service |
 | --- | --- | --- | --- |
-| POST | `/request-code` | — | `AuthService.request_code` |
-| POST | `/verify-code` | — | `AuthService.verify_code` |
+| POST | `/phone-check` | — | `AuthService.check_phone` |
+| POST | `/register` | — | `AuthService.register` |
+| POST | `/login` | — | `AuthService.login` |
+| POST | `/social/google` | — | `AuthService.google_login` |
 | POST | `/complete-profile` | A | `UserService.update_profile` |
-| POST | `/social/{provider}` | — | `AuthService.social_login` |
+| POST | `/password` | A | `AuthService.set_password` |
 | POST | `/staff-login` | — | `AuthService.staff_login` |
 | POST | `/refresh` | R | `AuthService.refresh` |
-| POST | `/logout` | A | `AuthService.logout` |
-| POST | `/logout-all` | A | `AuthService.logout(all_devices=True)` |
+| POST | `/logout` | A + R | `AuthService.logout` |
+| POST | `/logout-all` | A | `AuthService.logout_all` |
+
+Sign-in is two calls, not one: `/phone-check` decides which of `/register` and
+`/login` the client shows next, and returns no token of its own. There is no
+verification step — see DECISIONS.md Part 9 for what that costs and why the
+optional password is where it is.
 
 ### users — `/v1/users`
 `GET /me`, `PATCH /me`, `DELETE /me` (204), `GET|POST /me/devices`,
@@ -127,19 +139,8 @@ One handler per `DomainError` subclass in `app/core/handlers.py`, mapping to
 `POST /{id}/cancel` `P:orders.close`, `GET /{id}/receipt`,
 `POST /{id}/receipt/reprint` `P:orders.close`.
 
-### payments — `/v1/payment-cards`, `/v1/payments`
-`GET|POST /payment-cards` A, `PATCH /payment-cards/{id}/default` A,
-`POST /payments` A, `GET /payments/booking/{booking_id}` A.
-
-### webhooks — `/v1/webhooks` — no JWT
-`POST /payme`, `POST /click`. Signature verified before anything else, idempotent
-on `provider_transaction_id`, and each returns the **provider's** envelope rather
-than the standard error body — a payment gateway retries forever against a shape it
-does not recognise. Own router, own exception handling.
-
-### subscriptions / promotions / reviews / engagement / analytics
+### subscriptions / reviews / engagement / analytics
 `GET /v1/subscriptions/plans` —, `GET /v1/subscriptions/me` A;
-`POST /v1/promo-codes/validate` A, `GET /v1/vouchers` A, `GET /v1/banners` —;
 `POST /v1/reviews` A, `GET /v1/reviews/venue/{venue_id}` —;
 `GET|POST /v1/favorites` A, `DELETE /v1/favorites/{venue_id}` A,
 `GET /v1/conversations` A, `GET|POST /v1/conversations/{id}/messages` A,
@@ -165,11 +166,11 @@ returns a lie is worse than a route that is absent from the schema.
 `receipt.pdf`, `GET /bookings/history`, blocked-slot writes, order item
 update/delete/status, menu category/item update+delete, item variants and photo,
 staff invitation revoke and `PATCH /{staff_id}`, review get/update/delete and
-staff reply, payment-card delete and verify, subscription subscribe/cancel.
+staff reply, subscription subscribe/cancel.
 
 ## Generated routes
 
-113 operations across 100 paths. This table is produced from `app.openapi()` and
+105 operations across 93 paths. This table is produced from `app.openapi()` and
 is the authoritative list; the sections above explain the shape, this says what
 exists.
 
@@ -179,7 +180,6 @@ exists.
 | DELETE | `/api/v1/users/me` | `users_delete_me` |
 | GET | `/api/health` | `health_check` |
 | GET | `/api/v1/amenities` | `catalog_list_amenities` |
-| GET | `/api/v1/banners` | `promotions_list_banners` |
 | GET | `/api/v1/bookings` | `bookings_list_mine` |
 | GET | `/api/v1/bookings/{booking_id}` | `bookings_get_detail` |
 | GET | `/api/v1/conversations` | `engagement_list_conversations` |
@@ -188,8 +188,6 @@ exists.
 | GET | `/api/v1/languages` | `localization_list_languages` |
 | GET | `/api/v1/notifications` | `engagement_list_notifications` |
 | GET | `/api/v1/notifications/unread-count` | `engagement_unread_count` |
-| GET | `/api/v1/payment-cards` | `payments_list_cards` |
-| GET | `/api/v1/payments/booking/{booking_id}` | `payments_list_for_booking` |
 | GET | `/api/v1/regions` | `geo_list_regions` |
 | GET | `/api/v1/regions/{region_id}/districts` | `geo_list_districts` |
 | GET | `/api/v1/reviews/venue/{venue_id}` | `reviews_list_for_venue` |
@@ -234,8 +232,6 @@ exists.
 | GET | `/api/v1/venues/{venue_id}/services` | `venues_list_services` |
 | GET | `/api/v1/venues/{venue_id}/tables` | `venues_list_free_tables` |
 | GET | `/api/v1/venues/{venue_id}/zones` | `venues_list_zones` |
-| GET | `/api/v1/vouchers` | `promotions_list_vouchers` |
-| PATCH | `/api/v1/payment-cards/{card_id}/default` | `payments_set_default_card` |
 | PATCH | `/api/v1/users/me` | `users_update_me` |
 | PATCH | `/api/v1/venue/groups/{group_id}` | `venue_groups_update` |
 | PATCH | `/api/v1/venue/staff/{staff_id}/active` | `venue_staff_set_active` |
@@ -248,10 +244,12 @@ exists.
 | POST | `/api/v1/auth/logout` | `auth_logout` |
 | POST | `/api/v1/auth/logout-all` | `auth_logout_all` |
 | POST | `/api/v1/auth/refresh` | `auth_refresh` |
-| POST | `/api/v1/auth/request-code` | `auth_request_code` |
-| POST | `/api/v1/auth/social/{provider}` | `auth_social_login` |
+| POST | `/api/v1/auth/login` | `auth_login` |
+| POST | `/api/v1/auth/password` | `auth_set_password` |
+| POST | `/api/v1/auth/phone-check` | `auth_phone_check` |
+| POST | `/api/v1/auth/register` | `auth_register` |
+| POST | `/api/v1/auth/social/google` | `auth_google_login` |
 | POST | `/api/v1/auth/staff-login` | `auth_staff_login` |
-| POST | `/api/v1/auth/verify-code` | `auth_verify_code` |
 | POST | `/api/v1/bookings/hall` | `bookings_create_hall_event` |
 | POST | `/api/v1/bookings/table` | `bookings_create_table_reservation` |
 | POST | `/api/v1/bookings/{booking_id}/cancel` | `bookings_cancel` |
@@ -261,9 +259,6 @@ exists.
 | POST | `/api/v1/favorites` | `engagement_toggle_favorite` |
 | POST | `/api/v1/notifications/read-all` | `engagement_mark_all_notifications_read` |
 | POST | `/api/v1/notifications/{notification_id}/read` | `engagement_mark_notification_read` |
-| POST | `/api/v1/payment-cards` | `payments_add_card` |
-| POST | `/api/v1/payments` | `payments_create` |
-| POST | `/api/v1/promo-codes/validate` | `promotions_validate_code` |
 | POST | `/api/v1/reviews` | `reviews_create` |
 | POST | `/api/v1/users/me/devices` | `users_register_device` |
 | POST | `/api/v1/users/me/friends` | `users_request_friend` |
@@ -284,7 +279,5 @@ exists.
 | POST | `/api/v1/venue/staff/invitations/accept` | `venue_staff_accept_invitation` |
 | POST | `/api/v1/venue/venues/{venue_id}/onboarding/finish` | `venue_venues_onboarding_finish` |
 | POST | `/api/v1/venue/venues/{venue_id}/tables/bulk` | `venue_venues_create_tables_bulk` |
-| POST | `/api/v1/webhooks/click` | `webhooks_click` |
-| POST | `/api/v1/webhooks/payme` | `webhooks_payme` |
 | PUT | `/api/v1/venue/menu/items/{item_id}/branches` | `venue_menu_set_item_branches` |
 | PUT | `/api/v1/venue/venues/{venue_id}/working-hours` | `venue_venues_replace_working_hours` |

@@ -6,25 +6,13 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.staff.models import Permission, StaffRole, StaffRolePermission
+from app.modules.staff.models import StaffRole
 from app.modules.venue_groups.models import VenueGroup
 from app.modules.venues.models import Venue
 from tests.api.conftest import auth_header
 from tests.repositories import factories
 
 BRANCH_MANAGE = "branch.manage"
-
-
-async def grant(session: AsyncSession, role_slug: str, *slugs: str) -> None:
-    role = (
-        await session.execute(select(StaffRole).where(StaffRole.slug == role_slug))
-    ).scalar_one()
-    for slug in slugs:
-        permission = (
-            await session.execute(select(Permission).where(Permission.slug == slug))
-        ).scalar_one()
-        session.add(StaffRolePermission(staff_role_id=role.id, permission_id=permission.id))
-    await session.flush()
 
 
 async def make_branch(
@@ -40,7 +28,7 @@ async def test_waiter_cannot_edit_a_branch(api_client: AsyncClient, session: Asy
     """A waiter has no branch.manage, so the guard refuses before the service runs."""
     group, venue = await make_branch(session)
     waiter = await factories.make_staff(session, venue, group, role_slug="waiter")
-    await grant(session, "manager", BRANCH_MANAGE)
+    await factories.grant(session, "manager", BRANCH_MANAGE)
 
     response = await api_client.patch(
         f"/api/v1/venue/venues/{venue.id}",
@@ -62,7 +50,7 @@ async def test_owner_of_another_group_cannot_edit_this_branch(
     other_group = await factories.make_venue_group(session)
     other_venue = await factories.make_venue(session, group=other_group)
     outsider = await factories.make_staff(session, other_venue, other_group, role_slug="owner")
-    await grant(session, "owner", BRANCH_MANAGE)
+    await factories.grant(session, "owner", BRANCH_MANAGE)
 
     response = await api_client.patch(
         f"/api/v1/venue/venues/{venue.id}",
@@ -80,7 +68,7 @@ async def test_group_admin_may_edit_any_branch_in_the_group(
     at every branch in its chain — the OR in `has_permission`."""
     group, first_branch = await make_branch(session)
     second_branch = await factories.make_venue(session, group=group)
-    await grant(session, "admin", BRANCH_MANAGE)
+    await factories.grant(session, "admin", BRANCH_MANAGE)
 
     admin_user = await factories.make_user(session)
     admin_role = (
@@ -113,6 +101,12 @@ async def test_group_admin_may_edit_any_branch_in_the_group(
 
 
 async def test_unauthenticated_staff_write_is_refused(api_client: AsyncClient) -> None:
+    """401, not 403 — the guard never got as far as asking what this caller may do.
+
+    The 403s above are the other half of the same boundary: those callers were
+    identified and then refused.
+    """
     response = await api_client.patch("/api/v1/venue/venues/1", json={"street": "X"})
 
-    assert response.status_code == 403
+    assert response.status_code == 401
+    assert response.json()["code"] == "unauthenticated"

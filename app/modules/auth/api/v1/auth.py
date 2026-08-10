@@ -3,13 +3,14 @@ from fastapi import APIRouter, status
 from app.core.dependencies import CurrentUser, PendingUser
 from app.modules.auth.api.dependencies import AuthServiceDep, UserServiceDep
 from app.modules.auth.api.tokens import with_access_token
-from app.modules.auth.enums import AuthProvider
 from app.modules.auth.schemas import (
-    OtpRequest,
-    OtpRequested,
-    OtpVerify,
+    GoogleLogin,
+    PasswordChange,
+    PhoneCheck,
+    PhoneCheckResult,
+    PhoneLogin,
+    PhoneRegister,
     RefreshRequest,
-    SocialLogin,
     StaffLogin,
     TokenPair,
     UserProfileUpdate,
@@ -20,28 +21,58 @@ router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
 @router.post(
-    "/request-code",
-    response_model=OtpRequested,
-    operation_id="auth_request_code",
-    summary="Tasdiqlash kodini so'rash",
-    description="6 xonali kod yuboriladi. O'n daqiqada uch martadan ko'p so'rab bo'lmaydi.",
+    "/phone-check",
+    response_model=PhoneCheckResult,
+    operation_id="auth_phone_check",
+    summary="Telefon raqamini tekshirish",
+    description=(
+        "Kirishning birinchi qadami. Raqam ro'yxatdan o'tgan bo'lsa `login`, "
+        "aks holda `register` ekrani ko'rsatiladi. Token qaytarilmaydi."
+    ),
 )
-async def request_code(payload: OtpRequest, service: AuthServiceDep) -> OtpRequested:
-    return await service.request_code(payload)
+async def phone_check(payload: PhoneCheck, service: AuthServiceDep) -> PhoneCheckResult:
+    return await service.check_phone(payload)
 
 
 @router.post(
-    "/verify-code",
+    "/register",
     response_model=TokenPair,
-    operation_id="auth_verify_code",
-    summary="Tasdiqlash kodini tekshirish",
+    status_code=status.HTTP_201_CREATED,
+    operation_id="auth_register",
+    summary="Ro'yxatdan o'tish",
     description=(
-        "Kod ishlatiladi va tokenlar qaytariladi. Akkaunt aynan shu bosqichda "
-        "yaratiladi, undan oldin emas."
+        "Telefon raqamdan keyingi qadam: ism va qolgan ma'lumot. Parol ixtiyoriy — "
+        "berilsa, keyingi kirishlarda talab qilinadi."
     ),
 )
-async def verify_code(payload: OtpVerify, service: AuthServiceDep) -> TokenPair:
-    return with_access_token(await service.verify_code(payload))
+async def register(payload: PhoneRegister, service: AuthServiceDep) -> TokenPair:
+    return with_access_token(await service.register(payload))
+
+
+@router.post(
+    "/login",
+    response_model=TokenPair,
+    operation_id="auth_login",
+    summary="Telefon raqami bilan kirish",
+    description="Akkauntda parol o'rnatilgan bo'lsa, `password` majburiy.",
+)
+async def login(payload: PhoneLogin, service: AuthServiceDep) -> TokenPair:
+    return with_access_token(await service.login(payload))
+
+
+@router.post(
+    "/social/google",
+    response_model=TokenPair,
+    operation_id="auth_google_login",
+    summary="Google orqali kirish",
+    description=(
+        "Google bergan `id_token` server tomonida tekshiriladi. Email Google "
+        "tomonidan tasdiqlangan bo'lsa, mavjud akkauntga bog'lanadi — ikkinchi "
+        "akkaunt yaratilmaydi."
+    ),
+)
+async def google_login(payload: GoogleLogin, service: AuthServiceDep) -> TokenPair:
+    return with_access_token(await service.google_login(payload))
 
 
 @router.post(
@@ -49,7 +80,10 @@ async def verify_code(payload: OtpVerify, service: AuthServiceDep) -> TokenPair:
     response_model=UserRead,
     operation_id="auth_complete_profile",
     summary="Profilni to'ldirish",
-    description="Ism kiritilgach, akkaunt `pending_profile` dan `active` ga o'tadi.",
+    description=(
+        "Google orqali kirgan va ismi kelmagan akkauntlar uchun. Ism kiritilgach, "
+        "akkaunt `pending_profile` dan `active` ga o'tadi."
+    ),
 )
 async def complete_profile(
     payload: UserProfileUpdate, user: PendingUser, service: UserServiceDep
@@ -58,21 +92,18 @@ async def complete_profile(
 
 
 @router.post(
-    "/social/{provider}",
-    response_model=TokenPair,
-    operation_id="auth_social_login",
-    summary="Apple yoki Google orqali kirish",
+    "/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    operation_id="auth_set_password",
+    summary="Parol o'rnatish yoki o'zgartirish",
     description=(
-        "Email mos kelsa, yangi identifikator mavjud akkauntga bog'lanadi — "
-        "ikkinchi akkaunt yaratilmaydi."
+        "Parol allaqachon bor bo'lsa `current_password` majburiy. Parol "
+        "o'zgargach, boshqa barcha qurilmalardagi sessiyalar bekor qilinadi."
     ),
 )
-async def social_login(
-    provider: AuthProvider, payload: SocialLogin, service: AuthServiceDep
-) -> TokenPair:
-    return with_access_token(
-        await service.social_login(payload.model_copy(update={"provider": provider}))
-    )
+async def set_password(payload: PasswordChange, user: CurrentUser, service: AuthServiceDep) -> None:
+    await service.set_password(user.id, payload)
 
 
 @router.post(
@@ -106,10 +137,10 @@ async def refresh(payload: RefreshRequest, service: AuthServiceDep) -> TokenPair
     response_model=None,
     operation_id="auth_logout",
     summary="Chiqish",
-    description="Yuborilgan yangilash tokeni bekor qilinadi.",
+    description="Yuborilgan yangilash tokeni bekor qilinadi — faqat shu qurilma.",
 )
-async def logout(user: CurrentUser, service: AuthServiceDep) -> None:
-    await service.logout(user.id)
+async def logout(payload: RefreshRequest, user: CurrentUser, service: AuthServiceDep) -> None:
+    await service.logout(user.id, payload.refresh_token)
 
 
 @router.post(
@@ -121,4 +152,4 @@ async def logout(user: CurrentUser, service: AuthServiceDep) -> None:
     description="Akkauntning barcha yangilash tokenlari bekor qilinadi.",
 )
 async def logout_all(user: CurrentUser, service: AuthServiceDep) -> None:
-    await service.logout(user.id, all_devices=True)
+    await service.logout_all(user.id)

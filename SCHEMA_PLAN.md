@@ -8,7 +8,7 @@ Pydantic v2. One file per entity holding that entity's whole family, under
 ### Enums cannot move into `enums.py` without editing models
 
 The spec wants enums declared once in `app/modules/<module>/enums.py`, with models
-importing them. All 34 are currently declared inside model files, and this task may
+importing them. All 25 are currently declared inside model files, and this task may
 not modify models.
 
 `enums.py` therefore **re-exports** the model-declared enums. There is still
@@ -41,7 +41,6 @@ travels with its `currency`.
 | `UpdateSchema` | Base with a `model_validator` that raises when `model_fields_set` is empty, so a no-op PATCH is 422 rather than a silent 200. |
 | `Money` | `Decimal` serialised to a 2-dp string. |
 | `PhoneNumber` | `str` normalised to E.164 and rejected unless `+998` + 9 digits. |
-| `PromoCodeStr` | `str` stripped and upper-cased. |
 
 Pagination reuses `Page[T]` from `app/core/pagination.py`.
 
@@ -55,14 +54,13 @@ Pagination reuses `Page[T]` from `app/core/pagination.py`.
 - **Translations are flattened.** `name` / `description` are plain resolved
   strings. No schema exposes a translation row.
 - **Computed presentation values are declared fields**, filled by the service:
-  `distance_m`, `is_open_now`, `seconds_remaining`, `elapsed_seconds`,
-  `effective_price`.
+  `distance_m`, `is_open_now`, `elapsed_seconds`, `effective_price`.
 - **Local vs UTC.** `booking_date: date`, `start_time` / `end_time`: `time`, never
   combined. Audit stamps are naive UTC `datetime`.
 
 ## Families
 
-47 families. `C` = Create, `U` = Update, `R` = Read, `L` = ListItem,
+42 families. `C` = Create, `U` = Update, `R` = Read, `L` = ListItem,
 `S` = SearchParams.
 
 | Module | File | Variants |
@@ -72,7 +70,7 @@ Pagination reuses `Page[T]` from `app/core/pagination.py`.
 | geo | `district.py` | R |
 | geo | `user_address.py` | C R (recent locations) |
 | auth | `user.py` | C U R L + `UserProfileUpdate` |
-| auth | `auth.py` | `OtpRequest`, `OtpVerify`, `StaffLogin`, `SocialLogin`, `TokenPair`, `RefreshRequest` |
+| auth | `auth.py` | `PhoneCheck`, `PhoneCheckResult`, `PhoneRegister`, `PhoneLogin`, `GoogleLogin`, `PasswordChange`, `StaffLogin`, `TokenPair`, `RefreshRequest` |
 | auth | `device.py` | C R |
 | auth | `friendship.py` | C R + `FriendshipRequestAction` |
 | catalog | `venue_type.py` | R |
@@ -100,13 +98,8 @@ Pagination reuses `Page[T]` from `app/core/pagination.py`.
 | orders | `order_item.py` | C U R + `KitchenQueueItem` |
 | orders | `order_payment.py` | C R |
 | orders | `receipt.py` | C R |
-| payments | `payment_card.py` | C R |
-| payments | `payment.py` | C R |
 | subscriptions | `subscription_plan.py` | R |
 | subscriptions | `user_subscription.py` | C R |
-| promotions | `promo_code.py` | R + `PromoCodeApply`, `PromoCodePreview` |
-| promotions | `user_promo_code.py` | R (with `seconds_remaining`) |
-| promotions | `banner.py` | R |
 | reviews | `review.py` | C U R L + `ReviewAggregateRead` |
 | engagement | `favorite.py` | C R |
 | engagement | `conversation.py` | C R L |

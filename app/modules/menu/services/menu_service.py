@@ -8,11 +8,8 @@ from app.modules.localization.repositories import LanguageRepository
 from app.modules.menu.enums import MenuItemStatus
 from app.modules.menu.models import (
     MenuCategory,
-    MenuCategoryTranslation,
     MenuItem,
-    MenuItemTranslation,
     MenuItemVariant,
-    MenuItemVariantTranslation,
 )
 from app.modules.menu.repositories import MenuCategoryRepository, MenuItemRepository
 from app.modules.menu.schemas import (
@@ -46,9 +43,9 @@ class MenuService:
         self.staff = StaffService(session)
 
     async def list_categories(
-        self, group_id: int, language_id: int, venue_id: int | None = None
+        self, group_id: int, venue_id: int | None = None
     ) -> Sequence[MenuCategoryRead]:
-        rows = await self.categories.list_for_group(group_id, language_id, venue_id)
+        rows = await self.categories.list_for_group(group_id, venue_id)
         return [
             MenuCategoryRead(
                 id=row.category.id,
@@ -61,10 +58,10 @@ class MenuService:
         ]
 
     async def list_items(
-        self, venue_id: int, language_id: int, category_id: int | None = None
+        self, venue_id: int, category_id: int | None = None
     ) -> Sequence[MenuItemListItem]:
         """Only what this branch actually serves."""
-        rows = await self.items.list_for_venue(venue_id, category_id, language_id)
+        rows = await self.items.list_for_venue(venue_id, category_id)
         return [
             MenuItemListItem(
                 id=row.item.id,
@@ -80,8 +77,8 @@ class MenuService:
             for row in rows
         ]
 
-    async def get_item(self, item_id: int, venue_id: int, language_id: int) -> MenuItemRead:
-        detail = await self.items.get_with_variants(item_id, venue_id, language_id)
+    async def get_item(self, item_id: int, venue_id: int) -> MenuItemRead:
+        detail = await self.items.get_with_variants(item_id, venue_id)
         if detail is None:
             raise NotFoundError("Bu taom ushbu filial menyusida yo'q")
         return MenuItemRead(
@@ -117,19 +114,13 @@ class MenuService:
         """Override → base/variant → raise. There is no fourth branch."""
         return await self.items.resolve_price(item_id, venue_id, variant_id)
 
-    async def create_category(
-        self, group_id: int, language_id: int, payload: MenuCategoryCreate
-    ) -> MenuCategoryRead:
+    async def create_category(self, group_id: int, payload: MenuCategoryCreate) -> MenuCategoryRead:
         category = await self.categories.create(
             MenuCategory(
                 venue_group_id=group_id,
+                name=payload.name,
                 sort_order=payload.sort_order,
                 is_active=True,
-            )
-        )
-        await self.categories.add_translation(
-            MenuCategoryTranslation(
-                menu_category_id=category.id, language_id=language_id, name=payload.name
             )
         )
         await self.session.commit()
@@ -145,7 +136,6 @@ class MenuService:
         self,
         actor_user_id: int,
         venue_id: int,
-        language_id: int,
         payload: MenuItemCreate,
         variants: Sequence[MenuItemVariantCreate] = (),
     ) -> MenuItemRead:
@@ -155,6 +145,8 @@ class MenuService:
         item = await self.items.create(
             MenuItem(
                 menu_category_id=payload.menu_category_id,
+                name=payload.name,
+                description=payload.description,
                 base_price=payload.base_price,
                 currency=payload.currency,
                 photo_url=payload.photo_url,
@@ -165,32 +157,20 @@ class MenuService:
                 status=MenuItemStatus.ACTIVE,
             )
         )
-        await self.items.add_translation(
-            MenuItemTranslation(
-                menu_item_id=item.id,
-                language_id=language_id,
-                name=payload.name,
-                description=payload.description,
-            )
-        )
 
         for variant in variants:
-            row = await self.items.add_variant(
+            await self.items.add_variant(
                 MenuItemVariant(
                     menu_item_id=item.id,
+                    name=variant.name,
                     price=variant.price,
                     sort_order=variant.sort_order,
                     is_active=True,
                 )
             )
-            await self.items.add_variant_translation(
-                MenuItemVariantTranslation(
-                    variant_id=row.id, language_id=language_id, name=variant.name
-                )
-            )
 
         await self.session.commit()
-        return await self.get_item(item.id, venue_id, language_id)
+        return await self.get_item(item.id, venue_id)
 
     async def set_branch_availability(
         self,

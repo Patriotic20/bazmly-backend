@@ -1,13 +1,11 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import Subquery, case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuCategory,
-    MenuCategoryTranslation,
     MenuItem,
     MenuItemBranch,
     MenuItemStatus,
@@ -27,24 +25,6 @@ class MenuCategoryRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def _translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (MenuCategoryTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                MenuCategoryTranslation.menu_category_id.label("menu_category_id"),
-                MenuCategoryTranslation.name.label("name"),
-            )
-            .join(Language, Language.id == MenuCategoryTranslation.language_id)
-            .distinct(MenuCategoryTranslation.menu_category_id)
-            .order_by(MenuCategoryTranslation.menu_category_id, priority)
-            .subquery()
-        )
-
     async def get_by_id(self, category_id: int) -> MenuCategory | None:
         result = await self.session.execute(
             select(MenuCategory).where(MenuCategory.id == category_id)
@@ -52,7 +32,7 @@ class MenuCategoryRepository:
         return result.scalar_one_or_none()
 
     async def list_for_group(
-        self, group_id: int, language_id: int, venue_id: int | None = None
+        self, group_id: int, venue_id: int | None = None
     ) -> Sequence[MenuCategoryRow]:
         """The chip row. The count on each chip ("5" on Steyklar) is a live
         `COUNT(*)` as a correlated subquery, never a stored column.
@@ -61,7 +41,6 @@ class MenuCategoryRepository:
         which is what the waiter's menu grid needs; omitting it counts the chain's
         catalogue.
         """
-        translations = self._translation_subquery(language_id)
 
         count_stmt = (
             select(func.count())
@@ -85,8 +64,7 @@ class MenuCategoryRepository:
         item_count = count_stmt.correlate(MenuCategory).scalar_subquery()
 
         result = await self.session.execute(
-            select(MenuCategory, translations.c.name, item_count)
-            .outerjoin(translations, translations.c.menu_category_id == MenuCategory.id)
+            select(MenuCategory, MenuCategory.name, item_count)
             .where(
                 MenuCategory.venue_group_id == group_id,
                 MenuCategory.is_active.is_(True),
@@ -102,10 +80,3 @@ class MenuCategoryRepository:
         self.session.add(category)
         await self.session.flush()
         return category
-
-    async def add_translation(
-        self, translation: MenuCategoryTranslation
-    ) -> MenuCategoryTranslation:
-        self.session.add(translation)
-        await self.session.flush()
-        return translation

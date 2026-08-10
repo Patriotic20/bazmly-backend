@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import datetime, time
 
-from sqlalchemy import Subquery, case, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.bookings.models import (
@@ -15,8 +15,7 @@ from app.modules.bookings.models import (
     BookingStatus,
 )
 from app.modules.bookings.models.booking_status_history import BookingStatusHistory
-from app.modules.localization.models import Language
-from app.modules.venues.models import Venue, VenueTable, VenueTranslation
+from app.modules.venues.models import Venue, VenueTable
 
 # The states in which a booking holds its table. Matches the exclusion constraint
 # and the hall-event partial index; changing one without the others reopens the
@@ -51,24 +50,6 @@ class BookingRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def _venue_translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (VenueTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                VenueTranslation.venue_id.label("venue_id"),
-                VenueTranslation.name.label("name"),
-            )
-            .join(Language, Language.id == VenueTranslation.language_id)
-            .distinct(VenueTranslation.venue_id)
-            .order_by(VenueTranslation.venue_id, priority)
-            .subquery()
-        )
-
     async def create_table_reservation(self, booking: Booking) -> Booking:
         """Restaurant reservation. Sets only the table columns.
 
@@ -96,13 +77,11 @@ class BookingRepository:
         return result.scalar_one_or_none()
 
     async def list_for_user(
-        self, user_id: int, language_id: int, statuses: Sequence[str] | None = None
+        self, user_id: int, statuses: Sequence[str] | None = None
     ) -> Sequence[UserBookingRow]:
-        translations = self._venue_translation_subquery(language_id)
         stmt = (
-            select(Booking, Venue, translations.c.name, VenueTable)
+            select(Booking, Venue, Venue.name, VenueTable)
             .join(Venue, Venue.id == Booking.venue_id)
-            .outerjoin(translations, translations.c.venue_id == Venue.id)
             .outerjoin(VenueTable, VenueTable.id == Booking.table_id)
             .where(Booking.user_id == user_id)
         )

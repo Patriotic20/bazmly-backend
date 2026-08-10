@@ -10,17 +10,21 @@ from app.core.database.mixins import IdIntPk, TimestampMixin
 
 
 class AuthProvider(StrEnum):
-    APPLE = "apple"
     GOOGLE = "google"
 
 
 class AuthIdentity(IdIntPk, TimestampMixin, Base):
-    """One row per linked social account. A user may link both providers."""
+    """One row per linked social account.
+
+    Still a table rather than a column on `users` even though Google is the only
+    provider left: a second one is a row here, and a column would be a migration
+    plus a rewrite of every lookup.
+    """
 
     __tablename__ = "auth_identities"
     __table_args__ = (
         UniqueConstraint("provider", "provider_user_id"),
-        CheckConstraint("provider IN ('apple', 'google')", name="ck_auth_identities_provider"),
+        CheckConstraint("provider IN ('google')", name="ck_auth_identities_provider"),
     )
 
     user_id: Mapped[int] = mapped_column(

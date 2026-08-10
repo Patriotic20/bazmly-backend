@@ -20,7 +20,6 @@ LOCAL_NOON = datetime(2026, 8, 3, 12, 0)
 async def test_search_orders_by_distance(session: AsyncSession) -> None:
     """Three venues at increasing distance come back nearest-first, with a
     `distance_m` that actually grows."""
-    language = await factories.get_language(session)
 
     near = await factories.make_venue(
         session, name="Near", latitude=ORIGIN_LAT, longitude=ORIGIN_LON
@@ -33,7 +32,6 @@ async def test_search_orders_by_distance(session: AsyncSession) -> None:
     )
 
     page = await VenueRepository(session).search(
-        language_id=language.id,
         local_dt=LOCAL_NOON,
         latitude=ORIGIN_LAT,
         longitude=ORIGIN_LON,
@@ -51,7 +49,6 @@ async def test_search_orders_by_distance(session: AsyncSession) -> None:
 
 async def test_search_within_radius_excludes_far_venues(session: AsyncSession) -> None:
     """`ST_DWithin` is a filter; the total reflects it."""
-    language = await factories.get_language(session)
 
     near = await factories.make_venue(
         session, name="Near", latitude=ORIGIN_LAT, longitude=ORIGIN_LON
@@ -59,7 +56,6 @@ async def test_search_within_radius_excludes_far_venues(session: AsyncSession) -
     await factories.make_venue(session, name="Far", latitude=ORIGIN_LAT + 0.5, longitude=ORIGIN_LON)
 
     page = await VenueRepository(session).search(
-        language_id=language.id,
         local_dt=LOCAL_NOON,
         latitude=ORIGIN_LAT,
         longitude=ORIGIN_LON,
@@ -80,7 +76,6 @@ async def test_is_open_now_is_false_when_a_special_day_closes_the_venue(
     administrative, `is_open_now` is the clock, and a holiday override sits on top
     of the clock rather than on the status.
     """
-    language = await factories.get_language(session)
     venue = await factories.make_venue(session, name="Yunusobod")
     await factories.make_working_hours(session, venue, time(8, 0), time(20, 0))
 
@@ -100,7 +95,7 @@ async def test_is_open_now_is_false_when_a_special_day_closes_the_venue(
 
     assert await repository.is_open_at(venue.id, LOCAL_NOON) is False
 
-    page = await repository.search(language_id=language.id, local_dt=LOCAL_NOON)
+    page = await repository.search(local_dt=LOCAL_NOON)
     row = next(item for item in page.items if item.venue.id == venue.id)
     # Still listed — closed is a badge, not an exclusion.
     assert row.is_open_now is False
@@ -108,7 +103,6 @@ async def test_is_open_now_is_false_when_a_special_day_closes_the_venue(
 
 async def test_search_can_filter_to_open_venues_only(session: AsyncSession) -> None:
     """`is_open_now` becomes a filter only when explicitly asked for."""
-    language = await factories.get_language(session)
 
     open_venue = await factories.make_venue(session, name="Open")
     await factories.make_working_hours(session, open_venue, time(8, 0), time(20, 0))
@@ -120,24 +114,24 @@ async def test_search_can_filter_to_open_venues_only(session: AsyncSession) -> N
 
     repository = VenueRepository(session)
 
-    unfiltered = await repository.search(language_id=language.id, local_dt=LOCAL_NOON)
+    unfiltered = await repository.search(local_dt=LOCAL_NOON)
     assert {row.venue.id for row in unfiltered.items} == {open_venue.id, closed_venue.id}
 
-    filtered = await repository.search(
-        language_id=language.id, local_dt=LOCAL_NOON, only_open_now=True
-    )
+    filtered = await repository.search(local_dt=LOCAL_NOON, only_open_now=True)
     assert [row.venue.id for row in filtered.items] == [open_venue.id]
 
 
-async def test_search_resolves_the_name_through_the_language_fallback(
-    session: AsyncSession,
-) -> None:
-    """Only an Uzbek translation exists, so a Russian-speaking caller still gets a
-    name rather than an empty string."""
-    russian = await factories.get_language(session, "ru")
+async def test_search_returns_the_name_off_the_venue_row(session: AsyncSession) -> None:
+    """No join, no language fallback — `venues.name` is the only source.
+
+    This replaces a test that exercised the `DISTINCT ON` translation fallback. That
+    machinery is gone, so what is worth asserting now is that the name survives the
+    search query at all: it is selected alongside computed columns like `distance_m`,
+    which is where a column could quietly go missing.
+    """
     venue = await factories.make_venue(session, name="Tinchlik Plaza")
 
-    page = await VenueRepository(session).search(language_id=russian.id, local_dt=LOCAL_NOON)
+    page = await VenueRepository(session).search(local_dt=LOCAL_NOON)
 
     row = next(item for item in page.items if item.venue.id == venue.id)
     assert row.name == "Tinchlik Plaza"

@@ -33,27 +33,23 @@ class VenueServiceCatalogService:
         self.venue_services = VenueServiceRepository(session)
         self.staff = StaffService(session)
 
-    async def list_catalog(
-        self, language_id: int, venue_type_id: int | None = None
-    ) -> Sequence[ServiceCatalogRead]:
-        rows = await self.catalog.list_active(language_id, venue_type_id)
+    async def list_catalog(self, venue_type_id: int | None = None) -> Sequence[ServiceCatalogRead]:
+        rows = await self.catalog.list_active(venue_type_id)
         return [
             ServiceCatalogRead(
-                id=row.service.id,
-                slug=row.service.slug,
+                id=row.id,
+                slug=row.slug,
                 name=row.name,
-                icon_url=row.service.icon_url,
-                applies_to_venue_type_id=row.service.applies_to_venue_type_id,
-                sort_order=row.service.sort_order,
+                icon_url=row.icon_url,
+                applies_to_venue_type_id=row.applies_to_venue_type_id,
+                sort_order=row.sort_order,
             )
             for row in rows
         ]
 
-    async def list_for_venue(
-        self, venue_id: int, group_id: int, language_id: int
-    ) -> Sequence[VenueServiceRead]:
+    async def list_for_venue(self, venue_id: int, group_id: int) -> Sequence[VenueServiceRead]:
         """Branch prices win over chain prices for the same catalogue entry."""
-        rows = await self.venue_services.list_for_venue(venue_id, group_id, language_id)
+        rows = await self.venue_services.list_for_venue(venue_id, group_id)
         result: list[VenueServiceRead] = []
         for row in rows:
             items = await self.venue_services.list_items(row.service.id)

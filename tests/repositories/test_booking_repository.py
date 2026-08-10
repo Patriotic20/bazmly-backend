@@ -41,7 +41,6 @@ def build_booking(
         contact_name="Test Guest",
         contact_phone="+998900000000",
         subtotal=Decimal("0"),
-        discount_amount=Decimal("0"),
         deposit_amount=Decimal("0"),
         total_amount=Decimal("0"),
         currency="UZS",

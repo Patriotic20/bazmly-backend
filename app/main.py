@@ -4,19 +4,30 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.core.auth_mode import validate_auth_settings
 from app.core.config import settings
 from app.core.database.db_helper import db_helper
 from app.core.handlers import register_exception_handlers
+from app.core.integrations.google import close_google_verifier
 from app.core.logging import setup_logging
 from app.core.middleware.logging import LoggingMiddleware
 from app.core.middleware.request_id import RequestIDMiddleware
+from app.core.redis import close_redis
 from app.core.router import main_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_logging()
+
+    # First, because it is the guard whose failure matters most: an API that has
+    # shipped with authentication off must not reach the point of opening a port.
+    validate_auth_settings()
+
     yield
+
+    await close_google_verifier()
+    await close_redis()
     await db_helper.dispose()
 
 
@@ -42,7 +53,13 @@ app = FastAPI(
     # Declared in the order `app/core/router.py` includes them, so the Swagger
     # sections follow the module order instead of first-use order.
     openapi_tags=[
-        {"name": "localization", "description": "Til sozlamalari: uz, en, ru."},
+        {
+            "name": "localization",
+            "description": (
+                "Interfeys tili ro'yxati. Kontent faqat o'zbek tilida — bu ro'yxat "
+                "foydalanuvchining `users.language_id` sozlamasi uchun."
+            ),
+        },
         {"name": "geo", "description": "Viloyatlar va tumanlar."},
         {"name": "catalog", "description": "Muassasa turlari va qulayliklar."},
         {"name": "auth", "description": "Ro'yxatdan o'tish, kirish va token yangilash."},
@@ -56,13 +73,9 @@ app = FastAPI(
         {"name": "bookings", "description": "Mijoz bronlari — Joylar bo'limi."},
         {"name": "venue:bookings", "description": "Kutilayotgan mijozlar — kunlik navbat."},
         {"name": "venue:orders", "description": "Buyurtmalar — stollardagi ochiq cheklar."},
-        {"name": "payments", "description": "To'lovlar va saqlangan kartalar."},
-        {"name": "subscriptions", "description": "Obuna tariflari."},
-        {"name": "promotions", "description": "Promokodlar, vaucherlar va bannerlar."},
         {"name": "reviews", "description": "Sharhlar va reyting."},
         {"name": "engagement", "description": "Sevimlilar, suhbatlar va Xabarlar."},
         {"name": "venue:analytics", "description": "Boshqaruv paneli va hisobotlar."},
-        {"name": "webhooks", "description": "To'lov tizimi chaqiruvlari. JWT talab qilinmaydi."},
     ],
 )
 

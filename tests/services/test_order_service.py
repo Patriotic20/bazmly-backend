@@ -20,29 +20,12 @@ from app.modules.orders.schemas import (
     OrderPaymentCreate,
 )
 from app.modules.orders.services import OrderService
-from app.modules.staff.models import StaffRolePermission, VenueStaff
+from app.modules.staff.models import VenueStaff
 from app.modules.venue_groups.models import VenueGroup
 from app.modules.venues.models import Venue, VenueTable
 from tests.repositories import factories
 
 ITEM_PRICE = Decimal("50000.00")
-
-
-async def grant(session: AsyncSession, role_slug: str, *slugs: str) -> None:
-    """Attach permissions to a seeded role for the duration of the test."""
-    from sqlalchemy import select
-
-    from app.modules.staff.models import Permission, StaffRole
-
-    role = (
-        await session.execute(select(StaffRole).where(StaffRole.slug == role_slug))
-    ).scalar_one()
-    for slug in slugs:
-        permission = (
-            await session.execute(select(Permission).where(Permission.slug == slug))
-        ).scalar_one()
-        session.add(StaffRolePermission(staff_role_id=role.id, permission_id=permission.id))
-    await session.flush()
 
 
 async def setup_order_env(
@@ -53,7 +36,7 @@ async def setup_order_env(
     await factories.make_working_hours(session, venue, time(8, 0), time(23, 0))
     table = await factories.make_table(session, venue, number=1, seats=4)
     staff = await factories.make_staff(session, venue, group, role_slug="waiter")
-    await grant(session, "waiter", "orders.open", "orders.add_items", "orders.close")
+    await factories.grant(session, "waiter", "orders.open", "orders.add_items", "orders.close")
     item = await factories.make_menu_item(session, group, base_price=ITEM_PRICE)
     await factories.make_menu_branch(session, item, venue)
     return group, venue, table, staff, item
@@ -91,7 +74,6 @@ async def test_closing_below_the_total_raises(session: AsyncSession) -> None:
     payment row — or a short one — would make the dashboard understate the day.
     """
     _group, venue, table, staff, item = await setup_order_env(session)
-    language = await factories.get_language(session)
     service = OrderService(session)
 
     order = await service.open_table(
@@ -102,7 +84,6 @@ async def test_closing_below_the_total_raises(session: AsyncSession) -> None:
         venue.id,
         order.id,
         [OrderItemCreate(menu_item_id=item.id, quantity=2)],
-        language.id,
     )
 
     # No payment at all.
@@ -128,7 +109,6 @@ async def test_closing_twice_raises_receipt_already_issued(
 ) -> None:
     """A receipt is written once. A correction is a new order or a refund."""
     _group, venue, table, staff, item = await setup_order_env(session)
-    language = await factories.get_language(session)
     service = OrderService(session)
 
     order = await service.open_table(
@@ -139,7 +119,6 @@ async def test_closing_twice_raises_receipt_already_issued(
         venue.id,
         order.id,
         [OrderItemCreate(menu_item_id=item.id, quantity=1)],
-        language.id,
     )
     await service.add_payment(
         staff.user_id,
@@ -160,7 +139,6 @@ async def test_cash_is_a_valid_settlement(session: AsyncSession) -> None:
     """Cash settles a check exactly like a card would — what matters is that a
     payment row exists for the rollup to read."""
     _group, venue, table, staff, item = await setup_order_env(session)
-    language = await factories.get_language(session)
     service = OrderService(session)
 
     order = await service.open_table(
@@ -171,7 +149,6 @@ async def test_cash_is_a_valid_settlement(session: AsyncSession) -> None:
         venue.id,
         order.id,
         [OrderItemCreate(menu_item_id=item.id, quantity=3)],
-        language.id,
     )
     await service.add_payment(
         staff.user_id,

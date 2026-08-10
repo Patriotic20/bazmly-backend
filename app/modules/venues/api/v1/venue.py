@@ -9,9 +9,10 @@ no generated client can express.
 from collections.abc import Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Path, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId, require_permission
+from app.core.dependencies import CurrentUser, require_group_permission, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.venues.api.dependencies import (
     OnboardingServiceDep,
     VenueServiceDep,
@@ -19,6 +20,7 @@ from app.modules.venues.api.dependencies import (
 )
 from app.modules.venues.schemas import (
     TableCountsCreate,
+    VenueCreate,
     VenueRead,
     VenueStatusCountsRead,
     VenueTableRead,
@@ -28,6 +30,28 @@ from app.modules.venues.schemas import (
 )
 
 router = APIRouter(prefix="/v1/venue/venues", tags=["venue:venues"])
+
+
+@router.post(
+    "",
+    response_model=VenueRead,
+    status_code=status.HTTP_201_CREATED,
+    operation_id="venue_venues_create",
+    summary="Filial qo'shish",
+    description=(
+        "Tarmoqqa yangi filial. Ruxsat `group_id` bo'yicha tekshiriladi, chunki "
+        "yaratilayotgan filialning `venue_id` si hali mavjud emas. Egasi tarmoqdan "
+        "meros qoladi, joylashuv koordinatalardan hisoblanadi, `ichkari` va "
+        "`tashqari` zonalari avtomatik ochiladi."
+    ),
+    dependencies=[require_group_permission("branch.create")],
+)
+async def create_branch(
+    payload: VenueCreate,
+    service: OnboardingServiceDep,
+    group_id: Annotated[int, Query(ge=1)],
+) -> VenueRead:
+    return await service.add_branch(group_id, payload)
 
 
 @router.get(
@@ -69,12 +93,11 @@ async def status_counts(
     description="Filialning egasi ko'radigan ma'lumoti.",
 )
 async def get_branch(
-    language_id: LanguageId,
     service: VenueServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
     user: CurrentUser,
 ) -> VenueRead:
-    detail = await service.get_detail(venue_id, language_id)
+    detail = await service.get_detail(venue_id)
     return detail.venue
 
 
@@ -84,11 +107,10 @@ async def get_branch(
     operation_id="venue_venues_update",
     summary="Filialni tahrirlash",
     description="Manzil, sig'im, oldindan to'lov shartlari va bron uchun oldindan xabar muddati.",
-    dependencies=[require_permission("branch.manage")],
 )
 async def update_branch(
     payload: VenueUpdate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("branch.manage")],
     service: VenueServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
 ) -> VenueRead:
@@ -137,11 +159,10 @@ async def list_tables(
     operation_id="venue_venues_create_tables_bulk",
     summary="Stollarni sig'im bo'yicha yaratish",
     description="Boshlang'ich sozlashdagi 2/4/6/8/10+ guruhlari raqamlangan stollarga yoyiladi.",
-    dependencies=[require_permission("branch.manage")],
 )
 async def create_tables_bulk(
     payload: TableCountsCreate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("branch.manage")],
     service: VenueTableServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
 ) -> Sequence[VenueTableRead]:
@@ -157,11 +178,10 @@ async def create_tables_bulk(
 )
 async def list_zones(
     user: CurrentUser,
-    language_id: LanguageId,
     service: VenueTableServiceDep,
     venue_id: Annotated[int, Path(ge=1)],
 ) -> Sequence[VenueZoneRead]:
-    return await service.list_zones(venue_id, language_id)
+    return await service.list_zones(venue_id)
 
 
 @router.patch(

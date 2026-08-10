@@ -1,6 +1,6 @@
 # Repository plan
 
-45 repositories, one class per file, no shared base. Written before the files
+38 repositories, one class per file, no shared base. Written before the files
 existed; kept as the index of what they expose.
 
 ## Two things the models cannot support as specified
@@ -11,7 +11,7 @@ this task is forbidden from touching them.
 ### 1. No `relationship()` exists on any model, so `selectinload` has no target
 
 The models declare columns only. `inspect(Venue).relationships` is empty across
-all 77. `selectinload` / `joinedload` take a relationship attribute, so hard
+all 68. `selectinload` / `joinedload` take a relationship attribute, so hard
 rule 5 cannot be executed literally.
 
 Its *intent* — never trigger implicit IO — holds structurally instead: with no
@@ -64,11 +64,9 @@ already records the `confirmed → checked_in` transition.
 `user_repository.py` — **UserRepository**: `get_by_id`,
 `get_by_id_including_deleted`, `get_by_phone`, `get_by_email`, `get_by_login`,
 `get_with_language` → `UserWithLanguage`, `exists_by_phone`, `create`,
-`mark_phone_verified`, `mark_email_verified`, `touch_last_login`, `soft_delete`
+`set_password`, `touch_last_login`, `soft_delete`
 `auth_identity_repository.py` — **AuthIdentityRepository**: `get_by_provider`,
 `list_for_user`, `create`, `delete`
-`verification_code_repository.py` — **VerificationCodeRepository**: `create`,
-`get_active`, `increment_attempts`, `consume`, `count_recent`
 `refresh_token_repository.py` — **RefreshTokenRepository**: `create`,
 `get_by_hash`, `revoke`, `revoke_all_for_user`, `revoke_all_for_device`
 `device_repository.py` — **DeviceRepository**: `get_by_uuid`, `upsert`,
@@ -146,28 +144,12 @@ already records the `confirmed → checked_in` transition.
 `receipt_repository.py` — **ReceiptRepository**: `create`, `get_by_order`,
 `get_by_number`, `increment_reprint`
 
-### payments
-`payment_card_repository.py` — **PaymentCardRepository**: `list_for_user`,
-`get_by_id`, `get_default`, `set_default`, `get_by_token`, `create`
-`payment_repository.py` — **PaymentRepository**: `create`, `get_by_id`,
-`get_by_provider_transaction_id`, `list_for_booking`, `sum_paid_for_booking`,
-`mark_paid`, `mark_failed`
-`refund_repository.py` — **RefundRepository**: `create`, `list_for_payment`
-
 ### subscriptions
 `subscription_plan_repository.py` — **SubscriptionPlanRepository**: `list_active`,
 `get_by_id`
 `user_subscription_repository.py` — **UserSubscriptionRepository**:
 `get_active_for_user`, `get_by_id`, `list_due_for_renewal`, `mark_past_due`,
 `create`
-
-### promotions
-`promo_code_repository.py` — **PromoCodeRepository**: `get_by_code`, `get_by_id`,
-`increment_used`, `count_redemptions_for_user`, `record_redemption`
-`user_promo_code_repository.py` — **UserPromoCodeRepository**: `list_for_user`,
-`get_by_id`, `mark_used`, `expire_stale`, `create`
-`banner_repository.py` — **BannerRepository**: `list_active` →
-`Sequence[BannerRow]`
 
 ### reviews
 `review_repository.py` — **ReviewRepository**: `list_for_venue` →

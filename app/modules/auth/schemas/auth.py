@@ -1,19 +1,64 @@
 from pydantic import BaseModel, Field
 
-from app.core.schemas import PhoneNumber, ReadSchema
-from app.modules.auth.enums import AuthProvider, VerificationChannel, VerificationPurpose
+from app.core.schemas import Password, PhoneNumber, ReadSchema
 
 
-class OtpRequest(BaseModel):
-    destination: str
-    channel: VerificationChannel = VerificationChannel.SMS
-    purpose: VerificationPurpose = VerificationPurpose.REGISTRATION
+class PhoneCheck(BaseModel):
+    """Kirishning birinchi qadami: raqam yuboriladi, boshqa hech narsa emas."""
+
+    phone: PhoneNumber
 
 
-class OtpVerify(BaseModel):
-    destination: str
-    code: str = Field(min_length=4, max_length=8)
-    purpose: VerificationPurpose = VerificationPurpose.REGISTRATION
+class PhoneCheckResult(ReadSchema):
+    """Mijoz keyin qaysi ekranni ko'rsatishini shu javob hal qiladi.
+
+    Bu yerda ataylab token ham, foydalanuvchi haqidagi ma'lumot ham yo'q — bu
+    autentifikatsiya emas, faqat yo'nalish.
+    """
+
+    phone: str
+    registered: bool
+    password_required: bool
+
+
+class PhoneRegister(BaseModel):
+    """Ikkinchi qadam, yangi raqam uchun: qolgan ma'lumot shu yerda kiritiladi.
+
+    `password` ixtiyoriy. Berilsa, keyingi kirishlarda o'sha raqam uchun parol
+    talab qilinadi; berilmasa, kirish uchun telefon raqamning o'zi yetarli.
+    """
+
+    phone: PhoneNumber
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    password: Password | None = None
+    language_id: int | None = None
+    district_id: int | None = None
+
+
+class PhoneLogin(BaseModel):
+    """Mavjud raqam bilan kirish.
+
+    `password` bu yerda `Password` emas: hisobda saqlangan eski parol yangi
+    uzunlik qoidasiga mos kelmasligi mumkin, va uzunlikni bu yerda rad etish
+    "parol noto'g'ri" javobidan boshqa ma'no bermaydi.
+    """
+
+    phone: PhoneNumber
+    password: str | None = Field(default=None, max_length=128)
+
+
+class GoogleLogin(BaseModel):
+    """Google'dan olingan `id_token`. Email va ism o'sha tokendan o'qiladi."""
+
+    id_token: str = Field(min_length=1)
+
+
+class PasswordChange(BaseModel):
+    """Parol hali o'rnatilmagan bo'lsa `current_password` talab qilinmaydi."""
+
+    current_password: str | None = Field(default=None, max_length=128)
+    new_password: Password
 
 
 class StaffLogin(BaseModel):
@@ -23,23 +68,8 @@ class StaffLogin(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
-class SocialLogin(BaseModel):
-    provider: AuthProvider
-    provider_user_id: str
-    provider_email: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-
-
 class RefreshRequest(BaseModel):
     refresh_token: str
-
-
-class OtpRequested(ReadSchema):
-    """Kodning o'zi qaytarilmaydi. Faqat amal qilish muddati."""
-
-    destination: str
-    expires_in_seconds: int
 
 
 class TokenPair(ReadSchema):
@@ -49,7 +79,6 @@ class TokenPair(ReadSchema):
     expires_in_seconds: int
     user_id: int
     must_change_password: bool = False
-
-
-class PhoneCheck(BaseModel):
-    phone: PhoneNumber
+    # `false` faqat Google orqali yaratilgan va hali ismi yo'q akkauntlarda
+    # bo'ladi — mijoz shunda `/complete-profile` ekranini ko'rsatadi.
+    profile_completed: bool = True

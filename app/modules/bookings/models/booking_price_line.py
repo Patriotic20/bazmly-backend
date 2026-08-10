@@ -12,7 +12,6 @@ class PriceLineType(StrEnum):
     HALL_RENTAL = "hall_rental"
     CATERING = "catering"
     SERVICE_LOGISTICS = "service_logistics"
-    DISCOUNT = "discount"
     DEPOSIT = "deposit"
 
 
@@ -22,7 +21,7 @@ class BookingPriceLine(IdIntPk, TimestampMixin, Base):
     __tablename__ = "booking_price_lines"
     __table_args__ = (
         CheckConstraint(
-            "line_type IN ('hall_rental', 'catering', 'service_logistics', 'discount', 'deposit')",
+            "line_type IN ('hall_rental', 'catering', 'service_logistics', 'deposit')",
             name="ck_booking_price_lines_type",
         ),
     )

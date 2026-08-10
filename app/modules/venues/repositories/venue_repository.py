@@ -8,7 +8,6 @@ from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
 from sqlalchemy import (
     ColumnElement,
     Select,
-    Subquery,
     case,
     func,
     literal,
@@ -18,15 +17,13 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import Page
-from app.modules.catalog.models import Amenity, AmenityTranslation, VenueType
-from app.modules.localization.models import Language
+from app.modules.catalog.models import Amenity, VenueType
 from app.modules.reviews.models import Review, ReviewStatus
 from app.modules.venues.models import (
     Venue,
     VenueAmenity,
     VenuePhoto,
     VenueStatus,
-    VenueTranslation,
     VenueVenueType,
     VenueWorkingHours,
 )
@@ -39,6 +36,16 @@ NAME_SIMILARITY_THRESHOLD = 0.15
 SORT_DISTANCE = "distance"
 SORT_RATING = "rating"
 SORT_PRICE = "price"
+
+
+def point_ewkt(latitude: Decimal | float, longitude: Decimal | float) -> str:
+    """`venues.location` in the one format PostGIS reads back.
+
+    Longitude first. Reversing the pair is silent — it produces a valid point in
+    the wrong hemisphere, and the only symptom is a distance sort that ranks
+    Tashkent behind the Indian Ocean.
+    """
+    return f"SRID=4326;POINT({longitude} {latitude})"
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,27 +89,6 @@ class VenueStatusCounts:
 class VenueRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-
-    def _translation_subquery(self, language_id: int) -> Subquery:
-        """One row per venue: preferred language, else uz, else en."""
-        priority = case(
-            (VenueTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                VenueTranslation.venue_id.label("venue_id"),
-                VenueTranslation.name.label("name"),
-                VenueTranslation.description.label("description"),
-                VenueTranslation.tagline.label("tagline"),
-            )
-            .join(Language, Language.id == VenueTranslation.language_id)
-            .distinct(VenueTranslation.venue_id)
-            .order_by(VenueTranslation.venue_id, priority)
-            .subquery()
-        )
 
     def _is_open_now_expression(self, local_dt: datetime) -> ColumnElement[bool]:
         """Open right now, from working hours with a special-day override.
@@ -165,7 +151,6 @@ class VenueRepository:
     def _search_statement(
         self,
         *,
-        language_id: int,
         local_dt: datetime,
         venue_type_ids: Sequence[int] | None,
         district_id: int | None,
@@ -178,10 +163,9 @@ class VenueRepository:
         radius_m: float | None,
         only_open_now: bool,
     ) -> Select[tuple[Venue, str | None, str | None, float | None, bool]]:
-        translations = self._translation_subquery(language_id)
 
         point = (
-            ST_GeogFromText(f"SRID=4326;POINT({longitude} {latitude})")
+            ST_GeogFromText(point_ewkt(latitude, longitude))
             if latitude is not None and longitude is not None
             else None
         )
@@ -192,17 +176,13 @@ class VenueRepository:
         )
         is_open_now = self._is_open_now_expression(local_dt).label("is_open_now")
 
-        stmt = (
-            select(
-                Venue,
-                translations.c.name,
-                translations.c.tagline,
-                distance,
-                is_open_now,
-            )
-            .outerjoin(translations, translations.c.venue_id == Venue.id)
-            .where(Venue.status == VenueStatus.ACTIVE)
-        )
+        stmt = select(
+            Venue,
+            Venue.name,
+            Venue.tagline,
+            distance,
+            is_open_now,
+        ).where(Venue.status == VenueStatus.ACTIVE)
 
         if point is not None and radius_m is not None:
             stmt = stmt.where(ST_DWithin(Venue.location, point, radius_m))
@@ -236,8 +216,8 @@ class VenueRepository:
         if query:
             # `%` is the pg_trgm operator backed by the GIN index on the name.
             stmt = stmt.where(
-                translations.c.name.op("%")(query)
-                | (func.similarity(translations.c.name, query) >= NAME_SIMILARITY_THRESHOLD)
+                Venue.name.op("%")(query)
+                | (func.similarity(Venue.name, query) >= NAME_SIMILARITY_THRESHOLD)
             )
 
         if only_open_now:
@@ -248,7 +228,6 @@ class VenueRepository:
     async def search(
         self,
         *,
-        language_id: int,
         local_dt: datetime,
         limit: int = 20,
         offset: int = 0,
@@ -270,7 +249,6 @@ class VenueRepository:
         asked for — a closed venue still belongs on the list with a Yopiq badge.
         """
         stmt = self._search_statement(
-            language_id=language_id,
             local_dt=local_dt,
             venue_type_ids=venue_type_ids,
             district_id=district_id,
@@ -285,7 +263,7 @@ class VenueRepository:
         )
 
         if sort == SORT_DISTANCE and latitude is not None and longitude is not None:
-            point = ST_GeogFromText(f"SRID=4326;POINT({longitude} {latitude})")
+            point = ST_GeogFromText(point_ewkt(latitude, longitude))
             stmt = stmt.order_by(ST_Distance(Venue.location, point).asc(), Venue.id)
         elif sort == SORT_PRICE:
             stmt = stmt.order_by(Venue.base_price.asc().nulls_last(), Venue.id)
@@ -312,22 +290,19 @@ class VenueRepository:
         result = await self.session.execute(select(Venue).where(Venue.id == venue_id))
         return result.scalar_one_or_none()
 
-    async def get_detail(self, venue_id: int, language_id: int) -> VenueDetail | None:
+    async def get_detail(self, venue_id: int) -> VenueDetail | None:
         """Venue plus every child collection the detail screen renders.
 
         Each collection is fetched explicitly rather than through `selectinload`,
         because the models declare no relationships — see REPOSITORY_PLAN.md.
         """
-        translations = self._translation_subquery(language_id)
         head = await self.session.execute(
             select(
                 Venue,
-                translations.c.name,
-                translations.c.description,
-                translations.c.tagline,
-            )
-            .outerjoin(translations, translations.c.venue_id == Venue.id)
-            .where(Venue.id == venue_id)
+                Venue.name,
+                Venue.description,
+                Venue.tagline,
+            ).where(Venue.id == venue_id)
         )
         row = head.one_or_none()
         if row is None:
@@ -339,26 +314,9 @@ class VenueRepository:
             .order_by(VenuePhoto.is_cover.desc(), VenuePhoto.sort_order)
         )
 
-        amenity_priority = case(
-            (AmenityTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        amenity_translations = (
-            select(
-                AmenityTranslation.amenity_id.label("amenity_id"),
-                AmenityTranslation.name.label("name"),
-            )
-            .join(Language, Language.id == AmenityTranslation.language_id)
-            .distinct(AmenityTranslation.amenity_id)
-            .order_by(AmenityTranslation.amenity_id, amenity_priority)
-            .subquery()
-        )
         amenities = await self.session.execute(
-            select(Amenity, amenity_translations.c.name)
+            select(Amenity)
             .join(VenueAmenity, VenueAmenity.amenity_id == Amenity.id)
-            .outerjoin(amenity_translations, amenity_translations.c.amenity_id == Amenity.id)
             .where(VenueAmenity.venue_id == venue_id)
             .order_by(Amenity.sort_order)
         )
@@ -382,7 +340,7 @@ class VenueRepository:
             description=row[2],
             tagline=row[3],
             photos=photos.scalars().all(),
-            amenities=[(a[0], a[1] or a[0].slug) for a in amenities.all()],
+            amenities=[(a, a.name or a.slug) for a in amenities.scalars().all()],
             venue_types=venue_types.scalars().all(),
             working_hours=working_hours.scalars().all(),
         )
@@ -462,11 +420,6 @@ class VenueRepository:
         )
         await self.session.flush()
         return result.scalars().one_or_none()
-
-    async def add_translation(self, translation: VenueTranslation) -> VenueTranslation:
-        self.session.add(translation)
-        await self.session.flush()
-        return translation
 
     async def add_photo(self, photo: VenuePhoto) -> VenuePhoto:
         self.session.add(photo)

@@ -8,11 +8,13 @@ from app.core.database.mixins import IdIntPk, TimestampMixin
 
 
 class StaffInvitation(IdIntPk, TimestampMixin, Base):
-    """ "Login va vaqtinchalik parol avtomatik tarzda SMS orqali yuboriladi".
+    """A pending employment offer, redeemed with a temporary password.
 
-    Store the hash, never the password — same rule as `verification_codes`. The
-    temporary password expires and `users.must_change_password` forces rotation on
-    first login, so a forwarded SMS is not a permanent key to the till.
+    The row stores only the hash. The plaintext is returned once, in the response
+    to the request that created the invitation, and the owner passes it to the
+    person themselves — there is no delivery channel left to send it down. It
+    expires, and `users.must_change_password` forces rotation on first login, so
+    a forwarded credential is not a permanent key to the till.
     """
 
     __tablename__ = "staff_invitations"
@@ -24,8 +26,6 @@ class StaffInvitation(IdIntPk, TimestampMixin, Base):
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     staff_role_id: Mapped[int] = mapped_column(ForeignKey("staff_roles.id"), nullable=False)
     temp_password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    sms_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
-    sms_provider_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)

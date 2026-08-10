@@ -5,8 +5,8 @@ Used by Alembic env.py and anywhere that needs all tables registered.
 Imports are grouped per module, in the same dependency order as the migrations:
 
     localization → geo → auth → catalog → venue_groups → venues → staff
-      → menu → services → promotions → subscriptions → bookings → orders
-      → payments → reviews → engagement → analytics
+      → menu → services → bookings → orders
+      → reviews → engagement → analytics
 
 Adding a model without registering it here makes it invisible to
 `alembic revision --autogenerate`, which then silently emits an empty revision.
@@ -19,7 +19,6 @@ from app.modules.auth.models import (
     Friendship,
     RefreshToken,
     User,
-    VerificationCode,
 )
 from app.modules.bookings.models import (
     Booking,
@@ -31,9 +30,7 @@ from app.modules.bookings.models import (
 )
 from app.modules.catalog.models import (
     Amenity,
-    AmenityTranslation,
     VenueType,
-    VenueTypeTranslation,
 )
 from app.modules.engagement.models import (
     Conversation,
@@ -46,13 +43,10 @@ from app.modules.geo.models import District, Region, UserRecentLocation
 from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuCategory,
-    MenuCategoryTranslation,
     MenuItem,
     MenuItemBranch,
-    MenuItemTranslation,
     MenuItemVariant,
     MenuItemVariantBranch,
-    MenuItemVariantTranslation,
 )
 from app.modules.orders.models import (
     Order,
@@ -61,18 +55,9 @@ from app.modules.orders.models import (
     OrderStatusHistory,
     Receipt,
 )
-from app.modules.payments.models import Payment, PaymentCard, Refund
-from app.modules.promotions.models import (
-    Banner,
-    BannerTranslation,
-    PromoCode,
-    PromoCodeRedemption,
-    UserPromoCode,
-)
 from app.modules.reviews.models import Review, ReviewPhoto, ReviewReply
 from app.modules.services.models import (
     ServiceCatalog,
-    ServiceCatalogTranslation,
     VenueService,
     VenueServiceItem,
 )
@@ -81,15 +66,9 @@ from app.modules.staff.models import (
     StaffInvitation,
     StaffRole,
     StaffRolePermission,
-    StaffRoleTranslation,
     VenueStaff,
 )
-from app.modules.subscriptions.models import (
-    SubscriptionPlan,
-    SubscriptionPlanTranslation,
-    UserSubscription,
-)
-from app.modules.venue_groups.models import VenueGroup, VenueGroupTranslation
+from app.modules.venue_groups.models import VenueGroup
 from app.modules.venues.models import (
     Venue,
     VenueAmenity,
@@ -98,19 +77,14 @@ from app.modules.venues.models import (
     VenueSpecialDay,
     VenueTable,
     VenueTableQr,
-    VenueTranslation,
     VenueVenueType,
     VenueWorkingHours,
     VenueZone,
-    VenueZoneTranslation,
 )
 
 __all__ = [
     "Amenity",
-    "AmenityTranslation",
     "AuthIdentity",
-    "Banner",
-    "BannerTranslation",
     "Booking",
     "BookingItem",
     "BookingPriceLine",
@@ -123,50 +97,35 @@ __all__ = [
     "Friendship",
     "Language",
     "MenuCategory",
-    "MenuCategoryTranslation",
     "MenuItem",
     "MenuItemBranch",
-    "MenuItemTranslation",
     "MenuItemVariant",
     "MenuItemVariantBranch",
-    "MenuItemVariantTranslation",
     "Message",
     "Notification",
     "Order",
     "OrderItem",
     "OrderPayment",
     "OrderStatusHistory",
-    "Payment",
-    "PaymentCard",
     "Permission",
-    "PromoCode",
-    "PromoCodeRedemption",
     "Receipt",
     "RefreshToken",
-    "Refund",
     "Region",
     "Review",
     "ReviewPhoto",
     "ReviewReply",
     "SearchHistory",
     "ServiceCatalog",
-    "ServiceCatalogTranslation",
     "StaffInvitation",
     "StaffRole",
     "StaffRolePermission",
-    "StaffRoleTranslation",
-    "SubscriptionPlan",
-    "SubscriptionPlanTranslation",
     "User",
-    "UserPromoCode",
     "UserRecentLocation",
-    "UserSubscription",
     "Venue",
     "VenueAmenity",
     "VenueBlockedSlot",
     "VenueDailyStats",
     "VenueGroup",
-    "VenueGroupTranslation",
     "VenueGuestTier",
     "VenuePhoto",
     "VenueService",
@@ -175,12 +134,8 @@ __all__ = [
     "VenueStaff",
     "VenueTable",
     "VenueTableQr",
-    "VenueTranslation",
     "VenueType",
-    "VenueTypeTranslation",
     "VenueVenueType",
     "VenueWorkingHours",
     "VenueZone",
-    "VenueZoneTranslation",
-    "VerificationCode",
 ]

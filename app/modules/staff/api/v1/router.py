@@ -5,13 +5,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId, require_permission
+from app.core.dependencies import CurrentUser, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.staff.api.dependencies import StaffServiceDep
 from app.modules.staff.schemas import (
     InvitationAccept,
     StaffCountsRead,
     StaffInvitationCreate,
-    StaffInvitationRead,
+    StaffInvitationCreated,
     StaffRoleRead,
     VenueStaffListItem,
     VenueStaffRead,
@@ -29,14 +30,13 @@ router = APIRouter(prefix="/v1/venue/staff", tags=["venue:staff"])
 )
 async def list_staff(
     user: CurrentUser,
-    language_id: LanguageId,
     service: StaffServiceDep,
     group_id: Annotated[int, Query(ge=1)],
     venue_id: Annotated[int | None, Query(ge=1)] = None,
     role_id: Annotated[int | None, Query(ge=1)] = None,
     is_active: Annotated[bool | None, Query()] = None,
 ) -> Sequence[VenueStaffListItem]:
-    return await service.list_for_group(group_id, language_id, venue_id, role_id, is_active)
+    return await service.list_for_group(group_id, venue_id, role_id, is_active)
 
 
 @router.get(
@@ -63,30 +63,29 @@ async def staff_counts(
 )
 async def list_roles(
     user: CurrentUser,
-    language_id: LanguageId,
     service: StaffServiceDep,
     scope: Annotated[str | None, Query()] = None,
 ) -> Sequence[StaffRoleRead]:
-    return await service.list_roles(language_id, scope)
+    return await service.list_roles(scope)
 
 
 @router.post(
     "/invitations",
-    response_model=StaffInvitationRead,
+    response_model=StaffInvitationCreated,
     status_code=status.HTTP_201_CREATED,
     operation_id="venue_staff_invite",
     summary="Hodim qo'shish",
     description=(
-        "Vaqtinchalik parol SMS orqali bir marta yuboriladi va hech qachon javobda qaytarilmaydi."
+        "Login va vaqtinchalik parol **faqat shu javobda** qaytariladi — ularni "
+        "hodimga o'zingiz yetkazasiz. Boshqa hech qayerdan qayta o'qib bo'lmaydi."
     ),
-    dependencies=[require_permission("staff.manage")],
 )
 async def invite(
     payload: StaffInvitationCreate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("staff.manage")],
     service: StaffServiceDep,
     group_id: Annotated[int, Query(ge=1)],
-) -> StaffInvitationRead:
+) -> StaffInvitationCreated:
     return await service.invite(user.id, group_id, payload)
 
 
@@ -111,10 +110,9 @@ async def accept_invitation(
     operation_id="venue_staff_set_active",
     summary="Faollikni o'zgartirish",
     description="Hodimlar kartasidagi faollik tugmasi.",
-    dependencies=[require_permission("staff.manage")],
 )
 async def set_active(
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("staff.manage")],
     service: StaffServiceDep,
     staff_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],

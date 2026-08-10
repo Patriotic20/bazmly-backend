@@ -19,11 +19,11 @@ class InvitationAccept(BaseModel):
 
 
 class StaffInvitationRead(ReadSchema):
-    """`temp_password_hash` ham, ochiq parol ham qaytarilmaydi.
+    """Taklifnomani o'qish. Na parol, na uning xeshi qaytariladi.
 
-    Vaqtinchalik parol SMS orqali bir marta yuboriladi va API dan hech qachon
-    qayta o'qib bo'lmaydi — qayta o'qiladigan taklifnoma kassaga doimiy kalit
-    bo'lib qolardi.
+    Vaqtinchalik parol faqat taklifnoma yaratilgan paytdagi javobda ko'rinadi
+    (`StaffInvitationCreated`) va boshqa hech qayerdan qayta o'qib bo'lmaydi —
+    qayta o'qiladigan taklifnoma kassaga doimiy kalit bo'lib qolardi.
     """
 
     id: int
@@ -32,6 +32,17 @@ class StaffInvitationRead(ReadSchema):
     full_name: str
     phone: str
     staff_role_id: int
-    sms_sent_at: datetime | None = None
     accepted_at: datetime | None = None
     expires_at: datetime
+
+
+class StaffInvitationCreated(StaffInvitationRead):
+    """Faqat yaratish javobida. Sirni tashiydigan yagona sxema.
+
+    SMS yo'q, ya'ni hisob ma'lumotlarini hodimga yetkazadigan kanal ham yo'q:
+    ularni bir marta shu javobda ko'rsatib, muassasa egasining o'ziga topshirish
+    — taklifnomani umuman ishlatib bo'lmasligidan afzal. Sababi DECISIONS.md da.
+    """
+
+    login: str
+    temporary_password: str

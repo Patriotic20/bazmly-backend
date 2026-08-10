@@ -13,7 +13,16 @@ SORT_PRICE = "price"
 
 
 class VenueCreate(BaseModel):
-    venue_group_id: int
+    """Yangi filial.
+
+    `venue_group_id` bu yerda yo'q: tarmoq so'rovning o'zidan keladi — yo yangi
+    yaratilgan tarmoqdan, yo `group_id` parametridan. Uni tanada ham so'rash
+    ikkita bir-biriga zid manba yaratardi.
+
+    `owner_id` va `location` ham yo'q: birinchisi tarmoq egasidan olinadi,
+    ikkinchisi koordinatalardan hisoblanadi.
+    """
+
     district_id: int
     street: str = Field(min_length=1, max_length=255)
     house_number: str = Field(min_length=1, max_length=50)
@@ -24,6 +33,7 @@ class VenueCreate(BaseModel):
     description: str | None = None
     tagline: str | None = Field(default=None, max_length=120)
     venue_type_ids: list[int] = Field(default_factory=list)
+    amenity_ids: list[int] = Field(default_factory=list)
     total_seats: int | None = Field(default=None, gt=0)
     capacity_min: int | None = Field(default=None, gt=0)
     capacity_max: int | None = Field(default=None, gt=0)
@@ -37,6 +47,9 @@ class VenueCreate(BaseModel):
 
 
 class VenueUpdate(UpdateSchema):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    tagline: str | None = Field(default=None, max_length=120)
     district_id: int | None = None
     street: str | None = Field(default=None, min_length=1, max_length=255)
     house_number: str | None = Field(default=None, min_length=1, max_length=50)

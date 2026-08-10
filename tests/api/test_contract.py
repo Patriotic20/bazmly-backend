@@ -3,31 +3,43 @@
 from fastapi.routing import APIRoute
 from httpx import AsyncClient
 
+from app.core.dependencies import GroupPermissionRequired, PermissionRequired
 from tests.api.conftest import walk_routes
+
+GUARDS = (PermissionRequired, GroupPermissionRequired)
 
 # Every mutating verb under this prefix must be permission-gated.
 STAFF_PREFIX = "/api/v1/venue/"
 WRITE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
-# Accepting an invitation is the one staff-facing write that cannot be guarded:
-# the caller is proving who they are with a temporary password precisely because
-# they do not have an employment row yet.
-UNGUARDED_STAFF_WRITES = {"/api/v1/venue/staff/invitations/accept"}
+# Two staff-facing writes cannot be guarded, both for the same reason: they run
+# before the caller has an employment row, which is what every guard reads.
+#
+# Accepting an invitation proves identity with a temporary password instead.
+# Creating a chain is the bootstrap itself — it is what writes the owner's first
+# employment row, so there is nothing to check against. One chain per owner
+# stands in for the guard there.
+UNGUARDED_STAFF_WRITES = {
+    "/api/v1/venue/staff/invitations/accept",
+    "/api/v1/venue/groups",
+}
 
 
-def dependency_names(route: APIRoute) -> set[str]:
-    """Every callable in the route's resolved dependant tree."""
-    names: set[str] = set()
+def guard_slugs(route: APIRoute) -> set[str]:
+    """Every permission slug the route's resolved dependant tree enforces.
+
+    Matches on the guard's type rather than on a callable's name: a name test
+    passes for anything that happens to be called `dependency`, and it cannot say
+    *which* permission was demanded.
+    """
+    slugs: set[str] = set()
     stack = [route.dependant]
     while stack:
         current = stack.pop()
-        if current.call is not None:
-            names.add(getattr(current.call, "__name__", ""))
-            qualname = getattr(current.call, "__qualname__", "")
-            if qualname:
-                names.add(qualname)
+        if isinstance(current.call, GUARDS):
+            slugs.add(current.call.slug)
         stack.extend(current.dependencies)
-    return names
+    return slugs
 
 
 def test_operation_ids_are_unique() -> None:
@@ -67,10 +79,34 @@ def test_every_staff_write_is_permission_guarded() -> None:
             continue
         if path in UNGUARDED_STAFF_WRITES:
             continue
-        if "dependency" not in dependency_names(route):
+        if not guard_slugs(route):
             unguarded.append(f"{sorted(route.methods or set())[0]} {path}")
 
     assert unguarded == []
+
+
+def test_every_guard_demands_a_seeded_permission() -> None:
+    """A slug typo is silent: `VenueStaffRepository.has_permission` joins on the
+    string, finds nothing and refuses everyone, which reads exactly like a missing
+    role assignment."""
+    seeded = {
+        "branch.manage",
+        "branch.create",
+        "staff.manage",
+        "menu.edit",
+        "menu.publish",
+        "orders.open",
+        "orders.add_items",
+        "orders.close",
+        "orders.discount",
+        "bookings.confirm",
+        "bookings.cancel",
+        "reports.view",
+        "settings.edit",
+    }
+    used = {slug for _, route in walk_routes() for slug in guard_slugs(route)}
+
+    assert used - seeded == set()
 
 
 async def test_openapi_has_no_auto_generated_response_placeholders(

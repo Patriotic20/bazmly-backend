@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.core.dependencies import CurrentUser, LanguageId, SessionDep, require_permission
+from app.core.dependencies import SessionDep, require_permission
 from app.modules.analytics.schemas import (
     DashboardRead,
     PeriodComparisonRead,
@@ -26,13 +26,11 @@ router = APIRouter(prefix="/v1/venue/analytics", tags=["venue:analytics"])
     dependencies=[require_permission("reports.view")],
 )
 async def dashboard(
-    user: CurrentUser,
-    language_id: LanguageId,
     session: SessionDep,
     group_id: Annotated[int, Query(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
 ) -> DashboardRead:
-    return await DashboardService(session).owner_home(group_id, language_id, venue_id)
+    return await DashboardService(session).owner_home(group_id, venue_id)
 
 
 @router.get(
@@ -44,7 +42,6 @@ async def dashboard(
     dependencies=[require_permission("reports.view")],
 )
 async def daily(
-    user: CurrentUser,
     session: SessionDep,
     venue_id: Annotated[int, Query(ge=1)],
     date_from: Annotated[date, Query()],
@@ -64,7 +61,6 @@ async def daily(
     dependencies=[require_permission("reports.view")],
 )
 async def revenue(
-    user: CurrentUser,
     session: SessionDep,
     venue_id: Annotated[int, Query(ge=1)],
     current_from: Annotated[date, Query()],

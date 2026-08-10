@@ -10,7 +10,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Path, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId, require_permission
+from app.core.dependencies import CurrentUser, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.menu.api.dependencies import MenuServiceDep
 from app.modules.menu.schemas import (
     BranchAvailabilityUpdate,
@@ -34,12 +35,11 @@ router = APIRouter(prefix="/v1/venue/menu", tags=["venue:menu"])
 )
 async def list_categories(
     user: CurrentUser,
-    language_id: LanguageId,
     service: MenuServiceDep,
     group_id: Annotated[int, Query(ge=1)],
     venue_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> Sequence[MenuCategoryRead]:
-    return await service.list_categories(group_id, language_id, venue_id)
+    return await service.list_categories(group_id, venue_id)
 
 
 @router.post(
@@ -53,12 +53,10 @@ async def list_categories(
 )
 async def create_category(
     payload: MenuCategoryCreate,
-    user: CurrentUser,
-    language_id: LanguageId,
     service: MenuServiceDep,
     group_id: Annotated[int, Query(ge=1)],
 ) -> MenuCategoryRead:
-    return await service.create_category(group_id, language_id, payload)
+    return await service.create_category(group_id, payload)
 
 
 @router.get(
@@ -70,12 +68,11 @@ async def create_category(
 )
 async def list_items(
     user: CurrentUser,
-    language_id: LanguageId,
     service: MenuServiceDep,
     venue_id: Annotated[int, Query(ge=1)],
     category_id: Annotated[int | None, Query(ge=1)] = None,
 ) -> Sequence[MenuItemListItem]:
-    return await service.list_items(venue_id, language_id, category_id)
+    return await service.list_items(venue_id, category_id)
 
 
 @router.post(
@@ -88,17 +85,15 @@ async def list_items(
         "Menyu konstruktori, 1-2 bosqich. Variantlar asosiy narx o'rnini "
         "egallaydi, u bilan birga turmaydi."
     ),
-    dependencies=[require_permission("menu.edit")],
 )
 async def create_item(
     payload: MenuItemCreate,
-    user: CurrentUser,
-    language_id: LanguageId,
+    user: Annotated[UserRead, require_permission("menu.edit")],
     service: MenuServiceDep,
     venue_id: Annotated[int, Query(ge=1)],
     variants: Annotated[list[MenuItemVariantCreate] | None, Body()] = None,
 ) -> MenuItemRead:
-    return await service.create_item(user.id, venue_id, language_id, payload, variants or [])
+    return await service.create_item(user.id, venue_id, payload, variants or [])
 
 
 @router.get(
@@ -112,12 +107,11 @@ async def create_item(
 )
 async def get_item(
     user: CurrentUser,
-    language_id: LanguageId,
     service: MenuServiceDep,
     item_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
 ) -> MenuItemRead:
-    return await service.get_item(item_id, venue_id, language_id)
+    return await service.get_item(item_id, venue_id)
 
 
 @router.put(
@@ -129,11 +123,10 @@ async def get_item(
     description=(
         "Konstruktorning 3-bosqichi. Belgilanmagan filialdan taom butunlay olib tashlanadi."
     ),
-    dependencies=[require_permission("menu.publish")],
 )
 async def set_item_branches(
     payload: BranchAvailabilityUpdate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("menu.publish")],
     service: MenuServiceDep,
     item_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],

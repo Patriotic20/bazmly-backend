@@ -11,6 +11,7 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User, UserRole, UserStatus
@@ -22,15 +23,18 @@ from app.modules.menu.models import (
     MenuItem,
     MenuItemBranch,
     MenuItemStatus,
-    MenuItemTranslation,
 )
-from app.modules.staff.models import StaffRole, VenueStaff
+from app.modules.staff.models import (
+    Permission,
+    StaffRole,
+    StaffRolePermission,
+    VenueStaff,
+)
 from app.modules.venue_groups.models import VenueGroup, VenueGroupStatus
 from app.modules.venues.models import (
     Venue,
     VenueStatus,
     VenueTable,
-    VenueTranslation,
     VenueWorkingHours,
 )
 
@@ -91,6 +95,7 @@ async def make_venue_group(session: AsyncSession, owner: User | None = None) -> 
     group = VenueGroup(
         owner_id=owner.id,
         primary_venue_type_id=venue_type.id,
+        name=f"Tarmoq {unique_suffix()}",
         default_currency="UZS",
         status=VenueGroupStatus.ACTIVE,
     )
@@ -115,7 +120,6 @@ async def make_venue(
     """
     group = group or await make_venue_group(session)
     district = await make_district(session)
-    language = await get_language(session)
 
     venue = Venue(
         venue_group_id=group.id,
@@ -135,11 +139,9 @@ async def make_venue(
         reviews_count=0,
         status=status,
         onboarding_step=0,
+        name=name,
     )
     session.add(venue)
-    await session.flush()
-
-    session.add(VenueTranslation(venue_id=venue.id, language_id=language.id, name=name))
     await session.flush()
     return venue
 
@@ -201,13 +203,13 @@ async def make_menu_item(
     name: str = "Osh",
     base_price: Decimal = Decimal("45000.00"),
 ) -> MenuItem:
-    language = await get_language(session)
-    category = MenuCategory(venue_group_id=group.id, sort_order=0, is_active=True)
+    category = MenuCategory(venue_group_id=group.id, name="Taomlar", sort_order=0, is_active=True)
     session.add(category)
     await session.flush()
 
     item = MenuItem(
         menu_category_id=category.id,
+        name=name,
         base_price=base_price,
         currency="UZS",
         is_available=True,
@@ -216,9 +218,6 @@ async def make_menu_item(
         status=MenuItemStatus.ACTIVE,
     )
     session.add(item)
-    await session.flush()
-
-    session.add(MenuItemTranslation(menu_item_id=item.id, language_id=language.id, name=name))
     await session.flush()
     return item
 
@@ -238,6 +237,30 @@ async def make_menu_branch(
     session.add(branch)
     await session.flush()
     return branch
+
+
+async def grant(session: AsyncSession, role_slug: str, *slugs: str) -> None:
+    """Make sure a seeded role carries these permissions.
+
+    `4f2ba1c07d9e` seeds the role/permission matrix, so most of what a test asks
+    for is already there. Idempotent rather than additive: the assertion a test
+    cares about is "this role can do X", not "this row was inserted by me", and
+    `staff_role_permissions` has a composite primary key that would reject the
+    duplicate.
+    """
+    role = (
+        await session.execute(select(StaffRole).where(StaffRole.slug == role_slug))
+    ).scalar_one()
+    for slug in slugs:
+        permission = (
+            await session.execute(select(Permission).where(Permission.slug == slug))
+        ).scalar_one()
+        await session.execute(
+            pg_insert(StaffRolePermission)
+            .values(staff_role_id=role.id, permission_id=permission.id)
+            .on_conflict_do_nothing()
+        )
+    await session.flush()
 
 
 def business_day() -> date:

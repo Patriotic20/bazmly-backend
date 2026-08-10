@@ -1,6 +1,6 @@
 # Service plan
 
-28 services, one class per file, no shared base, no inheritance between them.
+23 services, one class per file, no shared base, no inheritance between them.
 Every constructor is `def __init__(self, session: AsyncSession) -> None` and
 builds the repositories it needs.
 
@@ -27,7 +27,6 @@ Added:
 | `UserRepository` | `update_profile` | profile edit, name promotes `pending_profile` → `active` |
 | `MenuItemRepository` | `add_variant`, `list_variants`, `update_fields` | variant builder |
 | `VenueServiceRepository` | `add_item`, `list_items` | dasturxon contents |
-| `PaymentCardRepository` | `delete_all_for_user` | account deletion |
 | `ReviewRepository` | `anonymise_for_user` | account deletion |
 | `VenueStaffRepository` | `list_for_user` | permission guard, staff self-view |
 
@@ -53,10 +52,10 @@ the map, so the code keeps working if the constraint is ever renamed.
 | --- | --- |
 | `exceptions.py` | `DomainError` base plus the 21 domain errors. Existing `AppError` subclasses stay for HTTP-shaped errors. |
 | `handlers.py` | Maps `DomainError` to 404 / 403 / 409 / 422 with `{"code", "message", "details"}`. |
-| `security.py` | `hash_secret` / `verify_secret` (PBKDF2-SHA256), `generate_numeric_code`, `generate_login`, `generate_password`, `generate_token`. |
+| `security.py` | `hash_secret` / `verify_secret` (PBKDF2-SHA256), `generate_login`, `generate_password`, `generate_token`, and the JWT encode/decode pair. |
 | `integrity.py` | Constraint name → domain exception, and `translate_integrity_error`. |
 | `cache.py` | `AvailabilityCache` protocol, in-memory default, Redis implementation chosen by `settings.redis.url`. |
-| `transports.py` | `SmsSender` / `PushSender` protocols with logging no-op defaults. The only things mocked in tests. |
+| `transports.py` | `PushSender` protocol with a logging no-op default. The only thing mocked in tests. |
 
 ## Services
 
@@ -78,12 +77,7 @@ the map, so the code keeps working if the constraint is ever renamed.
 | `AvailabilityService` | bookings | `available_tables`, `blocked_dates`, `day_slots` (Redis-cached) |
 | `OrderService` | orders | `open_table`, `board`, `add_items`, `get_detail`, `close`, `cancel`, `kitchen_queue`, `add_payment` |
 | `ReceiptService` | orders | `issue_in_transaction`, `get_for_order`, `reprint` |
-| `PaymentService` | payments | `create_for_booking`, `settle_webhook`, `sum_for_booking` |
-| `PaymentCardService` | payments | `list_for_user`, `add`, `set_default` |
 | `SubscriptionService` | subscriptions | `list_plans`, `active_for_user`, `benefit_percent_in_transaction` |
-| `PromoCodeService` | promotions | `preview`, `apply_in_transaction` |
-| `VoucherService` | promotions | `list_for_user`, `expire_stale` |
-| `BannerService` | promotions | `list_active` |
 | `ReviewService` | reviews | `create`, `list_for_venue`, `aggregate`, `publish` |
 | `FavoriteService` | engagement | `toggle`, `list_for_user` |
 | `ConversationService` | engagement | `open`, `list_for_user`, `send`, `history`, `mark_read` |
@@ -97,9 +91,9 @@ the map, so the code keeps working if the constraint is ever renamed.
   verifies. `request_code` throttles at 3 per 10 minutes, `verify_code` locks out
   after 5 wrong attempts, codes expire at 15 minutes and are single-use.
 - **Booking price assembly** — `BookingService._assemble_price_in_transaction`:
-  base (tier or menu subtotal) → services → subtotal → promo → subscription
-  benefit → total → deposit as a percentage **subtracted** from the total. One
-  frozen `booking_price_line` per component.
+  base (tier or menu subtotal) → services → subtotal → subscription benefit →
+  total → deposit as a percentage **subtracted** from the total. One frozen
+  `booking_price_line` per component.
 - **Booking guards** — lead time, venue open, capacity, in that order, before any
   write. Overlap is pre-checked for a readable message and the constraint remains
   the authority.
@@ -110,13 +104,13 @@ the map, so the code keeps working if the constraint is ever renamed.
 - **Permissions** — `StaffService.require_permission_in_transaction`, called by
   every owner-side write. Group scope satisfies venue scope within the group.
 - **Menu price** — override → base/variant → `NotFoundError`. No silent fallback.
-- **Account deletion** — soft delete, contact fields nulled, tokens revoked, cards
-  deleted, reviews anonymised; bookings, orders and payments untouched.
+- **Account deletion** — soft delete, contact fields nulled, tokens revoked,
+  reviews anonymised; bookings and orders untouched.
 
 ## Tests
 
 `tests/services/`, real Postgres, function-scoped transaction rolled back per
-test. Only the SMS and push transports are mocked.
+test. Only the push transport is mocked.
 
 `test_auth_service.py`, `test_booking_service.py`, `test_order_service.py`,
-`test_promo_code_service.py`, `test_menu_service.py`, `test_user_service.py`.
+`test_menu_service.py`, `test_user_service.py`.

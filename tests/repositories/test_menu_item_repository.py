@@ -58,16 +58,13 @@ async def test_list_for_venue_omits_items_with_no_branch_row(
     """An unticked branch's dishes are absent, not merely flagged unavailable."""
     group = await factories.make_venue_group(session)
     venue = await factories.make_venue(session, group=group)
-    language = await factories.get_language(session)
 
     served = await factories.make_menu_item(session, group, name="Osh", base_price=BASE_PRICE)
     await factories.make_menu_branch(session, served, venue, price_override=OVERRIDE_PRICE)
 
     unticked = await factories.make_menu_item(session, group, name="Manti", base_price=BASE_PRICE)
 
-    rows = await MenuItemRepository(session).list_for_venue(
-        venue.id, category_id=None, language_id=language.id
-    )
+    rows = await MenuItemRepository(session).list_for_venue(venue.id, category_id=None)
 
     ids = [row.item.id for row in rows]
     assert served.id in ids
@@ -85,7 +82,6 @@ async def test_set_branch_availability_adds_and_removes_branches(
     group = await factories.make_venue_group(session)
     first_venue = await factories.make_venue(session, group=group, name="Chilonzor")
     second_venue = await factories.make_venue(session, group=group, name="Yunusobod")
-    language = await factories.get_language(session)
     item = await factories.make_menu_item(session, group, base_price=BASE_PRICE)
     repository = MenuItemRepository(session)
 
@@ -104,9 +100,7 @@ async def test_set_branch_availability_adds_and_removes_branches(
     with pytest.raises(NotFoundError):
         await repository.resolve_price(item.id, first_venue.id)
 
-    remaining = await repository.list_for_venue(
-        second_venue.id, category_id=None, language_id=language.id
-    )
+    remaining = await repository.list_for_venue(second_venue.id, category_id=None)
     assert [row.item.id for row in remaining] == [item.id]
     # The override was cleared by the second call, which passed no overrides.
     assert remaining[0].effective_price == BASE_PRICE

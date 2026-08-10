@@ -3,20 +3,17 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Subquery, case, delete, func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuItem,
     MenuItemBranch,
     MenuItemStatus,
-    MenuItemTranslation,
     MenuItemVariant,
     MenuItemVariantBranch,
-    MenuItemVariantTranslation,
 )
 
 
@@ -58,65 +55,24 @@ class MenuItemRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    def _translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (MenuItemTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                MenuItemTranslation.menu_item_id.label("menu_item_id"),
-                MenuItemTranslation.name.label("name"),
-                MenuItemTranslation.description.label("description"),
-            )
-            .join(Language, Language.id == MenuItemTranslation.language_id)
-            .distinct(MenuItemTranslation.menu_item_id)
-            .order_by(MenuItemTranslation.menu_item_id, priority)
-            .subquery()
-        )
-
-    def _variant_translation_subquery(self, language_id: int) -> Subquery:
-        priority = case(
-            (MenuItemVariantTranslation.language_id == language_id, 0),
-            (Language.code == "uz", 1),
-            (Language.code == "en", 2),
-            else_=3,
-        )
-        return (
-            select(
-                MenuItemVariantTranslation.variant_id.label("variant_id"),
-                MenuItemVariantTranslation.name.label("name"),
-            )
-            .join(Language, Language.id == MenuItemVariantTranslation.language_id)
-            .distinct(MenuItemVariantTranslation.variant_id)
-            .order_by(MenuItemVariantTranslation.variant_id, priority)
-            .subquery()
-        )
-
     async def get_by_id(self, item_id: int) -> MenuItem | None:
         result = await self.session.execute(select(MenuItem).where(MenuItem.id == item_id))
         return result.scalar_one_or_none()
 
-    async def list_for_venue(
-        self, venue_id: int, category_id: int | None, language_id: int
-    ) -> Sequence[MenuItemRow]:
+    async def list_for_venue(self, venue_id: int, category_id: int | None) -> Sequence[MenuItemRow]:
         """Inner-joins `menu_item_branches`, so an unticked branch's dishes simply
         do not appear."""
-        translations = self._translation_subquery(language_id)
         effective_price = func.coalesce(MenuItemBranch.price_override, MenuItem.base_price)
 
         stmt = (
             select(
                 MenuItem,
-                translations.c.name,
-                translations.c.description,
+                MenuItem.name,
+                MenuItem.description,
                 effective_price,
                 MenuItemBranch.is_available,
             )
             .join(MenuItemBranch, MenuItemBranch.menu_item_id == MenuItem.id)
-            .outerjoin(translations, translations.c.menu_item_id == MenuItem.id)
             .where(
                 MenuItemBranch.venue_id == venue_id,
                 MenuItemBranch.is_available.is_(True),
@@ -139,33 +95,24 @@ class MenuItemRepository:
             for row in result.all()
         ]
 
-    async def get_with_variants(
-        self, item_id: int, venue_id: int, language_id: int
-    ) -> MenuItemWithVariants | None:
-        translations = self._translation_subquery(language_id)
+    async def get_with_variants(self, item_id: int, venue_id: int) -> MenuItemWithVariants | None:
         effective_price = func.coalesce(MenuItemBranch.price_override, MenuItem.base_price)
 
         head = await self.session.execute(
-            select(MenuItem, translations.c.name, translations.c.description, effective_price)
+            select(MenuItem, MenuItem.name, MenuItem.description, effective_price)
             .join(MenuItemBranch, MenuItemBranch.menu_item_id == MenuItem.id)
-            .outerjoin(translations, translations.c.menu_item_id == MenuItem.id)
             .where(MenuItem.id == item_id, MenuItemBranch.venue_id == venue_id)
         )
         row = head.one_or_none()
         if row is None:
             return None
-
-        variant_translations = self._variant_translation_subquery(language_id)
         variant_price = func.coalesce(MenuItemVariantBranch.price_override, MenuItemVariant.price)
         variants = await self.session.execute(
-            select(MenuItemVariant, variant_translations.c.name, variant_price)
+            select(MenuItemVariant, MenuItemVariant.name, variant_price)
             .outerjoin(
                 MenuItemVariantBranch,
                 (MenuItemVariantBranch.variant_id == MenuItemVariant.id)
                 & (MenuItemVariantBranch.venue_id == venue_id),
-            )
-            .outerjoin(
-                variant_translations, variant_translations.c.variant_id == MenuItemVariant.id
             )
             .where(
                 MenuItemVariant.menu_item_id == item_id,
@@ -298,22 +245,10 @@ class MenuItemRepository:
         await self.session.flush()
         return result.scalars().one_or_none()
 
-    async def add_translation(self, translation: MenuItemTranslation) -> MenuItemTranslation:
-        self.session.add(translation)
-        await self.session.flush()
-        return translation
-
     async def add_variant(self, variant: MenuItemVariant) -> MenuItemVariant:
         self.session.add(variant)
         await self.session.flush()
         return variant
-
-    async def add_variant_translation(
-        self, translation: MenuItemVariantTranslation
-    ) -> MenuItemVariantTranslation:
-        self.session.add(translation)
-        await self.session.flush()
-        return translation
 
     async def list_variants(self, item_id: int) -> Sequence[MenuItemVariant]:
         result = await self.session.execute(

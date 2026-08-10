@@ -33,8 +33,8 @@ class FavoriteService:
         await self.session.commit()
         return FavoriteToggled(venue_id=venue_id, is_favorite=is_favorite)
 
-    async def list_for_user(self, user_id: int, language_id: int) -> Sequence[FavoriteRead]:
-        rows = await self.favorites.list_for_user(user_id, language_id)
+    async def list_for_user(self, user_id: int) -> Sequence[FavoriteRead]:
+        rows = await self.favorites.list_for_user(user_id)
         return [
             FavoriteRead(
                 id=row.favorite.id,

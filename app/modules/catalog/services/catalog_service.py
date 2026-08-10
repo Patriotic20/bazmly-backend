@@ -17,28 +17,28 @@ class CatalogService:
         self.venue_types = VenueTypeRepository(session)
         self.amenities = AmenityRepository(session)
 
-    async def list_venue_types(self, language_id: int) -> Sequence[VenueTypeRead]:
-        rows = await self.venue_types.list_active(language_id)
+    async def list_venue_types(self) -> Sequence[VenueTypeRead]:
+        rows = await self.venue_types.list_active()
         return [
             VenueTypeRead(
-                id=row.venue_type.id,
-                slug=row.venue_type.slug,
+                id=row.id,
+                slug=row.slug,
                 name=row.name,
-                icon_url=row.venue_type.icon_url,
-                sort_order=row.venue_type.sort_order,
+                icon_url=row.icon_url,
+                sort_order=row.sort_order,
             )
             for row in rows
         ]
 
-    async def list_amenities(self, language_id: int) -> Sequence[AmenityRead]:
-        rows = await self.amenities.list_active(language_id)
+    async def list_amenities(self) -> Sequence[AmenityRead]:
+        rows = await self.amenities.list_active()
         return [
             AmenityRead(
-                id=row.amenity.id,
-                slug=row.amenity.slug,
+                id=row.id,
+                slug=row.slug,
                 name=row.name,
-                icon_url=row.amenity.icon_url,
-                sort_order=row.amenity.sort_order,
+                icon_url=row.icon_url,
+                sort_order=row.sort_order,
             )
             for row in rows
         ]

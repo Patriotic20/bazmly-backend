@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 from fastapi import APIRouter
 
-from app.core.dependencies import LanguageId, SessionDep
+from app.core.dependencies import SessionDep
 from app.modules.catalog.schemas import AmenityRead, VenueTypeRead
 from app.modules.catalog.services import CatalogService
 
@@ -16,8 +16,8 @@ router = APIRouter(prefix="/v1", tags=["catalog"])
     summary="Muassasa turlari",
     description="Restoran, To'yxona, Kafe. Barchasi — bu filtrsiz ko'rinish, alohida tur emas.",
 )
-async def list_venue_types(session: SessionDep, language_id: LanguageId) -> Sequence[VenueTypeRead]:
-    return await CatalogService(session).list_venue_types(language_id)
+async def list_venue_types(session: SessionDep) -> Sequence[VenueTypeRead]:
+    return await CatalogService(session).list_venue_types()
 
 
 @router.get(
@@ -27,5 +27,5 @@ async def list_venue_types(session: SessionDep, language_id: LanguageId) -> Sequ
     summary="Qulayliklar ro'yxati",
     description="Parkovka, ovoz tizimi, sahna, konditsioner, professional oshxona, Wi-Fi.",
 )
-async def list_amenities(session: SessionDep, language_id: LanguageId) -> Sequence[AmenityRead]:
-    return await CatalogService(session).list_amenities(language_id)
+async def list_amenities(session: SessionDep) -> Sequence[AmenityRead]:
+    return await CatalogService(session).list_amenities()

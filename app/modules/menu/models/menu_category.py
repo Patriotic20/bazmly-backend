@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Index, Integer
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
@@ -22,3 +22,4 @@ class MenuCategory(IdIntPk, TimestampMixin, Base):
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)

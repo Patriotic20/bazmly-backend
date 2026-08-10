@@ -10,19 +10,18 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.exceptions import (
     AlreadyReviewedError,
     AppError,
+    AuthenticationRequiredError,
     BookingNotCheckInableError,
     CapacityExceededError,
-    CodeExpiredError,
     DepositRequiredError,
     DomainError,
-    InvalidCodeError,
+    GroupAlreadyExistsError,
+    InvalidSocialTokenError,
     LeadTimeTooShortError,
     NotFoundError,
     PaymentIncompleteError,
     PermissionDeniedError,
     PhoneAlreadyRegisteredError,
-    PromoCodeExhaustedError,
-    PromoCodeInvalidError,
     ReceiptAlreadyIssuedError,
     TableAlreadyBookedError,
     TableHasOpenOrderError,
@@ -39,6 +38,12 @@ logger = logging.getLogger("app.error")
 # which is what lets services stay free of FastAPI.
 DOMAIN_STATUS: dict[type[DomainError], int] = {
     NotFoundError: 404,
+    # 401: no usable token. 403 is for a caller we know and still refuse — signing
+    # in again fixes the first and not the second.
+    AuthenticationRequiredError: 401,
+    # A rejected Google token is the same shape of problem: fetch a fresh one and
+    # retry, which is what 401 tells a client to do.
+    InvalidSocialTokenError: 401,
     PermissionDeniedError: 403,
     # 409: the request was well-formed but lost a race or hit a live-state rule.
     PhoneAlreadyRegisteredError: 409,
@@ -47,20 +52,17 @@ DOMAIN_STATUS: dict[type[DomainError], int] = {
     TableHasOpenOrderError: 409,
     ReceiptAlreadyIssuedError: 409,
     AlreadyReviewedError: 409,
+    GroupAlreadyExistsError: 409,
     # 429: throttles.
     TooManyAttemptsError: 429,
     # 422: the request is understood but the business refuses it.
     ValidationFailedError: 422,
-    InvalidCodeError: 422,
-    CodeExpiredError: 422,
     VenueClosedError: 422,
     LeadTimeTooShortError: 422,
     CapacityExceededError: 422,
     DepositRequiredError: 422,
     PaymentIncompleteError: 422,
     BookingNotCheckInableError: 422,
-    PromoCodeInvalidError: 422,
-    PromoCodeExhaustedError: 422,
 }
 
 DEFAULT_DOMAIN_STATUS = 422

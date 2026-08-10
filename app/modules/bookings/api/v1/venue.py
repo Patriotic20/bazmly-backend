@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, Path, Query
 
 from app.core.dependencies import CurrentUser, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.bookings.api.dependencies import AvailabilityServiceDep, BookingServiceDep
 from app.modules.bookings.enums import BookingStatus
 from app.modules.bookings.schemas import (
@@ -45,10 +46,11 @@ async def list_day(
         "Bir marta ishlatiladi: ikkinchi skan rad etiladi. Skanerlovchi shu "
         "filialda ishlashi shart."
     ),
-    dependencies=[require_permission("bookings.confirm")],
 )
 async def check_in(
-    payload: CheckInRequest, user: CurrentUser, service: BookingServiceDep
+    payload: CheckInRequest,
+    service: BookingServiceDep,
+    user: Annotated[UserRead, require_permission("bookings.confirm")],
 ) -> BookingRead:
     return await service.check_in_by_qr(user.id, payload.venue_id, payload.qr_token)
 
@@ -59,10 +61,9 @@ async def check_in(
     operation_id="venue_bookings_check_out",
     summary="Tashrifni yakunlash",
     description="`seated_minutes` haqiqiy vaqt oralig'idan bir marta yoziladi.",
-    dependencies=[require_permission("bookings.confirm")],
 )
 async def check_out(
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("bookings.confirm")],
     service: BookingServiceDep,
     booking_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],

@@ -13,7 +13,6 @@ from app.modules.auth.services import UserService
 from app.modules.bookings.models import Booking
 from app.modules.bookings.schemas import TableReservationCreate
 from app.modules.bookings.services import BookingService
-from app.modules.payments.models import PaymentCard
 from tests.repositories import factories
 
 
@@ -28,19 +27,6 @@ async def test_soft_delete_clears_contact_fields_and_revokes_tokens(
             user_id=user.id,
             token_hash="hash-value",
             expires_at=utcnow_naive() + timedelta(days=30),
-        )
-    )
-    session.add(
-        PaymentCard(
-            user_id=user.id,
-            provider="click",
-            provider_token="tok_secret",
-            brand="uzcard",
-            last_four="4242",
-            holder_name="TEST USER",
-            expiry_month=12,
-            expiry_year=2030,
-            is_default=True,
         )
     )
     await session.flush()
@@ -68,17 +54,10 @@ async def test_soft_delete_clears_contact_fields_and_revokes_tokens(
     assert tokens, "the row should still exist"
     assert all(token.revoked_at is not None for token in tokens)
 
-    cards = (
-        await session.execute(
-            select(func.count()).select_from(PaymentCard).where(PaymentCard.user_id == user.id)
-        )
-    ).scalar_one()
-    assert cards == 0, "a chargeable token is a live credential, not history"
-
 
 async def test_soft_delete_leaves_bookings_intact(session: AsyncSession) -> None:
-    """Bookings, orders and payments survive: a hard delete would break the
-    financial history the venue and the tax authority both still need."""
+    """Bookings and orders survive: a hard delete would break the financial
+    history the venue and the tax authority both still need."""
     group = await factories.make_venue_group(session)
     venue = await factories.make_venue(session, group=group)
     await factories.make_working_hours(session, venue, time(8, 0), time(23, 0))
@@ -97,7 +76,6 @@ async def test_soft_delete_leaves_bookings_intact(session: AsyncSession) -> None
             contact_name="Test Guest",
             contact_phone="+998901112233",
         ),
-        1,
     )
 
     await UserService(session).delete_account(user.id)
@@ -132,6 +110,8 @@ async def test_setting_a_name_promotes_pending_profile_to_active(
     """The second half of the registration state machine."""
     from app.modules.auth.schemas import UserProfileUpdate
 
+    # `users.language_id` survived the translation collapse: it is the account's UI
+    # language preference, which the frontend reads, not content localisation.
     language = await factories.get_language(session)
     user = User(
         first_name="",

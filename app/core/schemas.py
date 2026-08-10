@@ -1,8 +1,8 @@
 """Shared building blocks for every schema family.
 
-`Money`, `PhoneNumber` and `PromoCodeStr` are annotated types rather than
-per-field validators or serialisers. Attaching the behaviour to the type means a
-field cannot opt out of it by omission: a money field typed `Money` cannot be
+`Money`, `PhoneNumber` and `Password` are annotated types rather than per-field
+validators or serialisers. Attaching the behaviour to the type means a field
+cannot opt out of it by omission: a money field typed `Money` cannot be
 serialised as a JSON float, and a phone typed `PhoneNumber` cannot skip
 normalisation.
 """
@@ -68,11 +68,24 @@ def _check_phone(value: str) -> str:
 PhoneNumber = Annotated[str, BeforeValidator(_normalise_phone), AfterValidator(_check_phone)]
 
 
-def _normalise_promo_code(value: Any) -> Any:
-    return value.strip().upper() if isinstance(value, str) else value
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 128
 
 
-PromoCodeStr = Annotated[str, BeforeValidator(_normalise_promo_code)]
+def _check_password(value: str) -> str:
+    """Length only, with our own message.
+
+    `Field(min_length=...)` would enforce the same rule but report it in English,
+    and this string reaches the user.
+    """
+    if len(value) < PASSWORD_MIN_LENGTH:
+        raise ValueError(f"Parol kamida {PASSWORD_MIN_LENGTH} ta belgidan iborat bo'lishi kerak")
+    if len(value) > PASSWORD_MAX_LENGTH:
+        raise ValueError(f"Parol {PASSWORD_MAX_LENGTH} ta belgidan uzun bo'lmasligi kerak")
+    return value
+
+
+Password = Annotated[str, AfterValidator(_check_password)]
 
 
 # `from_attributes` is what lets a service hand an ORM object or a repository

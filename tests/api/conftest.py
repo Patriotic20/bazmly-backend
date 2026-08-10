@@ -13,7 +13,6 @@ from fastapi.routing import APIRoute, _IncludedRouter
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import transports
 from app.core.config import settings
 from app.core.database.mixins import utcnow_naive
 from app.core.dependencies import get_session
@@ -65,26 +64,3 @@ def auth_header(user_id: int) -> dict[str, str]:
         settings.security.access_token_ttl_minutes,
     )
     return {"Authorization": f"Bearer {token}"}
-
-
-class RecordingSms:
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    async def send(self, phone: str, body: str) -> str | None:
-        self.messages.append((phone, body))
-        return "test-id"
-
-    def last_body_for(self, phone: str) -> str:
-        for sent_phone, body in reversed(self.messages):
-            if sent_phone == phone:
-                return body
-        raise AssertionError(f"No SMS sent to {phone}")
-
-
-@pytest.fixture
-def api_sms() -> Iterator[RecordingSms]:
-    sender = RecordingSms()
-    transports.set_sms_sender(sender)
-    yield sender
-    transports.set_sms_sender(transports.LoggingSmsSender())

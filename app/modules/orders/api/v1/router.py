@@ -9,7 +9,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
-from app.core.dependencies import CurrentUser, LanguageId, require_permission
+from app.core.dependencies import CurrentUser, require_permission
+from app.modules.auth.schemas import UserRead
 from app.modules.orders.api.dependencies import OrderServiceDep, ReceiptServiceDep
 from app.modules.orders.enums import OrderStatus
 from app.modules.orders.schemas import (
@@ -83,11 +84,10 @@ async def list_orders(
     operation_id="venue_orders_open_table",
     summary="Stol ochish",
     description="Bir stolni ikki ofitsant ochsa, bitta chek va bitta 409 hosil bo'ladi.",
-    dependencies=[require_permission("orders.open")],
 )
 async def open_table(
     payload: OrderOpen,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("orders.open")],
     service: OrderServiceDep,
     venue_id: Annotated[int, Query(ge=1)],
 ) -> OrderRead:
@@ -117,17 +117,15 @@ async def get_detail(
     operation_id="venue_orders_add_items",
     summary="Chekka taom qo'shish",
     description="Qo'shish. Narx va nom qo'shilgan paytda saqlab qolinadi.",
-    dependencies=[require_permission("orders.add_items")],
 )
 async def add_items(
     payload: list[OrderItemCreate],
-    user: CurrentUser,
-    language_id: LanguageId,
+    user: Annotated[UserRead, require_permission("orders.add_items")],
     service: OrderServiceDep,
     order_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
 ) -> OrderDetailRead:
-    return await service.add_items(user.id, venue_id, order_id, payload, language_id)
+    return await service.add_items(user.id, venue_id, order_id, payload)
 
 
 @router.post(
@@ -137,11 +135,10 @@ async def add_items(
     operation_id="venue_orders_add_payment",
     summary="To'lovni qayd etish",
     description="Bo'lib to'lash bir necha qator bo'ladi. Naqd pul ham qabul qilinadi.",
-    dependencies=[require_permission("orders.close")],
 )
 async def add_payment(
     payload: OrderPaymentCreate,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("orders.close")],
     service: OrderServiceDep,
     order_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
@@ -155,10 +152,9 @@ async def add_payment(
     operation_id="venue_orders_close",
     summary="Yakunlash va chek chiqarish",
     description="Yakunlash. To'lovlar summani qoplamaguncha 422 qaytariladi.",
-    dependencies=[require_permission("orders.close")],
 )
 async def close_order(
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("orders.close")],
     service: OrderServiceDep,
     order_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
@@ -172,11 +168,10 @@ async def close_order(
     operation_id="venue_orders_cancel",
     summary="Chekni bekor qilish",
     description="Ochiq chekni bekor qiladi va kim bekor qilganini yozib qo'yadi.",
-    dependencies=[require_permission("orders.close")],
 )
 async def cancel_order(
     payload: OrderCancel,
-    user: CurrentUser,
+    user: Annotated[UserRead, require_permission("orders.close")],
     service: OrderServiceDep,
     order_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],
@@ -208,7 +203,6 @@ async def get_receipt(
     dependencies=[require_permission("orders.close")],
 )
 async def reprint_receipt(
-    user: CurrentUser,
     service: ReceiptServiceDep,
     order_id: Annotated[int, Path(ge=1)],
     venue_id: Annotated[int, Query(ge=1)],

@@ -88,6 +88,18 @@ class NotFoundError(DomainError):
     message = "Ma'lumot topilmadi"
 
 
+class AuthenticationRequiredError(DomainError):
+    """No usable token. Distinct from `PermissionDeniedError` on purpose.
+
+    401 tells the client to sign in and retry, and a mobile interceptor acts on
+    that. 403 means the caller is known and still refused, where signing in again
+    changes nothing — so a blocked account is a 403, not a 401.
+    """
+
+    code = "unauthenticated"
+    message = "Avtorizatsiya talab qilinadi"
+
+
 class PermissionDeniedError(DomainError):
     code = "permission_denied"
     message = "Bu amalni bajarishga ruxsatingiz yo'q"
@@ -106,19 +118,29 @@ class PhoneAlreadyRegisteredError(DomainError):
     message = "Bu telefon raqami allaqachon ro'yxatda"
 
 
-class InvalidCodeError(DomainError):
-    code = "invalid_code"
-    message = "Tasdiqlash kodi noto'g'ri"
+class InvalidSocialTokenError(DomainError):
+    """The Google `id_token` did not verify.
 
+    401 rather than 422: the credential is the problem, and the client's move is
+    to get a fresh token from Google and retry — exactly what a 401 tells it to
+    do. The reason travels in `details` for support, never the token itself.
+    """
 
-class CodeExpiredError(DomainError):
-    code = "code_expired"
-    message = "Tasdiqlash kodi muddati tugagan"
+    code = "invalid_social_token"
+    message = "Google tokeni yaroqsiz"
 
 
 class TooManyAttemptsError(DomainError):
     code = "too_many_attempts"
     message = "Urinishlar juda ko'p. Keyinroq urinib ko'ring"
+
+
+# --- venue onboarding -------------------------------------------------------
+
+
+class GroupAlreadyExistsError(DomainError):
+    code = "group_already_exists"
+    message = "Sizda allaqachon tarmoq bor"
 
 
 # --- booking ----------------------------------------------------------------
@@ -177,17 +199,7 @@ class ReceiptAlreadyIssuedError(DomainError):
     message = "Bu buyurtma uchun chek allaqachon chiqarilgan"
 
 
-# --- promotions and reviews -------------------------------------------------
-
-
-class PromoCodeInvalidError(DomainError):
-    code = "promo_code_invalid"
-    message = "Bu promokoddan foydalanib bo'lmaydi"
-
-
-class PromoCodeExhaustedError(DomainError):
-    code = "promo_code_exhausted"
-    message = "Bu promokod to'liq ishlatilgan"
+# --- reviews ----------------------------------------------------------------
 
 
 class AlreadyReviewedError(DomainError):

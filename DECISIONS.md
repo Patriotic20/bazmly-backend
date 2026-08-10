@@ -3,12 +3,301 @@
 Choices the specs did not pin down, plus the places where a spec's own
 instructions conflicted with each other.
 
+- [Part 10 — dropping payments and promotions](#part-10--dropping-payments-and-promotions)
+- [Part 9 — dropping SMS, OTP and Apple; phone-first sign-in](#part-9--dropping-sms-otp-and-apple-phone-first-sign-in)
+- [Part 8 — dropping subscriptions and multi-language content](#part-8--dropping-subscriptions-and-multi-language-content)
 - [Part 6 — Uzbek as the API's user-facing language](#part-6--uzbek-as-the-apis-user-facing-language)
 - [Part 5 — API layer](#part-5--api-layer)
 - [Part 4 — schemas and services](#part-4--schemas-and-services)
 - [Part 3 — repository layer](#part-3--repository-layer)
 - [Part 2 — models and migrations](#part-2--models-and-migrations)
 - [Part 1 — initial scaffold](#part-1--initial-scaffold)
+
+---
+
+# Part 10 — dropping payments and promotions
+
+2026-08-01. The product is not taking money online and is not running campaigns, so
+two modules were carrying a provider integration, a discount engine and a settlement
+callback surface for a feature nobody had shipped. Both went, together, because the
+promo chain only ever discounted an amount that `payments` was going to collect.
+
+## What was removed
+
+**`payments`** — the whole module: `payment_cards`, `payments`, `refunds`, their
+three repositories, `PaymentService` / `PaymentCardService`, the card and payment
+schema families, and the five customer endpoints under `/v1/payment-cards` and
+`/v1/payments`.
+
+**`promotions`** — the whole module: `promo_codes`, `user_promo_codes`,
+`promo_code_redemptions`, `banners`, their three repositories, `PromoCodeService` /
+`VoucherService` / `BannerService`, and `POST /v1/promo-codes/validate`,
+`GET /v1/vouchers`, `GET /v1/banners`.
+
+**`app/core/webhooks/`** — `router.py`, `signatures.py`, `__init__.py`, plus
+`tests/api/test_webhooks.py`. It existed only to settle Payme and Click callbacks
+against `payments`; with nothing to settle, the two unauthenticated `POST
+/v1/webhooks/{provider}` routes and the signature scheme they never got right (Part
+5) had no reason to stay behind an exception in the versioning and error-envelope
+rules.
+
+**In `bookings`** — `promo_code_id`, `discount_amount` and the `discount` member of
+`PriceLineType`. `PromoCodeStr` left `app/core/schemas.py` with them.
+
+## What was deliberately kept
+
+**`orders.order_payments` and everything around it** — the model, the
+`OrderPaymentMethod` enum (`cash`, `card`, `transfer`, `click`, `payme`, `other`),
+`add_payment` / `list_payments` / `sum_payments`, and
+`POST /v1/venue/orders/{order_id}/payments`. This is a waiter recording how a guest
+settled a check at the table, not a gateway charging a card. It shares a noun with
+the deleted module and nothing else: no provider call, no card token, no callback,
+no row the customer app can reach. `PaymentIncompleteError` and
+`OrderStatus.AWAITING_PAYMENT` stay for the same reason — they are how a check
+refuses to close, and checks did not go anywhere.
+
+`click` and `payme` survive as *method* values there because that is what the guest
+tapped on their own phone; the venue is recording an outcome, not initiating one.
+
+**`venues.discount_percent`** — the "10% chegirma" badge is venue merchandising,
+priced into `base_price`, and never went through a promo code.
+
+## Choices
+
+**Bookings lost the discount slot outright rather than keeping a nullable column.**
+A `discount_amount` that is structurally always zero is worse than no column: every
+price assembly, every receipt renderer and every report has to keep handling a case
+that can no longer occur, and the first person to read the schema will assume
+something writes it. If discounts come back they come back with whatever charges
+them, and that is a migration either way.
+
+**One forward revision, no rewriting of history.** The drop is a new revision on top
+of `9c1f4a7d2b30`, not an edit to the revisions that created these tables. Those
+revisions still have to run correctly on a database built from `base` — the seed
+revision writes promo rows at the point in history where the table exists — and a
+rewritten migration is a migration nobody can trust twice.
+
+## Verification
+
+| Check | Result |
+| ----- | ------ |
+| tables | 62 -> 55 |
+| routes | 115 -> 105 |
+| `alembic heads` | single head, one new revision on `9c1f4a7d2b30` |
+| `POST /api/v1/webhooks/{provider}` absent from OpenAPI | pass |
+| `order_payments` and `POST /v1/venue/orders/{id}/payments` still present | pass |
+
+---
+
+# Part 9 — dropping SMS, OTP and Apple; phone-first sign-in
+
+The product removed verification. There is no code to send, so the SMS gateway,
+the OTP table, the delivery log and the email-verification columns all lost their
+only reason to exist, and Apple sign-in went with them.
+
+## Design notes
+
+### A phone number alone signs you in, and that is the whole trade
+
+`POST /auth/phone-check` says whether a number is known and whether it carries a
+password; the client then goes to `/auth/register` or `/auth/login`. Without an
+OTP there is nothing proving the person holds the number — anyone who knows it can
+sign in to an account that has no password. That is the cost of dropping
+verification, and it is not hidden behind a fig leaf: the password is offered at
+registration and can be set later at `POST /auth/password`, and once set it is
+required. Making it mandatory was the alternative and it was rejected — it puts a
+password-reset flow in the way of a product that has just removed its only
+delivery channel for one.
+
+### `PhoneNumber` was already the normaliser, so no new module was written
+
+`app/core/schemas.py` has carried an annotated `PhoneNumber` type since Part 2:
+`901234567`, `998901234567` and `+998 90 123-45-67` all reach a service as
+`+998901234567`. Every new auth schema types its phone field with it, so the
+service layer cannot look an account up under a shape it was not stored as. The
+plan for this work proposed a separate `app/core/phone.py`; it would have been a
+second implementation of a rule that already had one.
+
+### `pending_profile` survives, for Google only
+
+Registration now carries the name, so a phone account is `active` from its first
+request. A Google account whose token has no `given_name` still arrives nameless,
+and that is the one path left into `pending_profile` — which is why
+`get_current_user_pending_ok` and `/auth/complete-profile` stay.
+
+### Google's `id_token` is verified here, not trusted from the body
+
+The old `POST /auth/social/{provider}` accepted `provider_user_id` and
+`provider_email` as plain JSON and looked the account up by that email. Anyone who
+knew someone's email address could sign in as them. The replacement takes an
+`id_token`, checks the RS256 signature against Google's JWKS, checks `aud` against
+our own client ids and `iss` against Google's two spellings, and reads every claim
+it acts on out of the verified payload.
+
+Linking on email is kept, but only when Google reports `email_verified` — an
+unverified address is one the person typed, and matching on it would hand over
+whatever account owns it. Accounts are keyed on `sub`, which cannot change.
+
+An empty `GOOGLE__CLIENT_IDS` disables the endpoint rather than killing the
+process at boot, unlike the SMS guards it replaces: an app shipping with phone
+login only is a legitimate configuration, whereas a misconfigured SMS gateway was
+always a broken one.
+
+`pyjwt[crypto]` replaced plain `pyjwt`. Without the extra, PyJWT cannot do RS256
+at all and every verification would fail at runtime — with tests that never
+noticed, because they would not have been able to sign a token either.
+
+### The staff invitation now returns the credentials it used to send
+
+This reverses the rule below that no read schema carries a secret, and it is the
+one exception in the codebase. The temporary password only ever existed in the SMS
+body; with SMS gone, an invitation would have created a row nobody could redeem —
+`accept_invitation` verifies against a hash of a password that was never
+communicated. `StaffInvitationCreated` returns `login` and `temporary_password`
+from the create call alone. No list, no re-read, and no other endpoint exposes
+them; the invitation still expires and `must_change_password` still forces
+rotation.
+
+### The booking confirmation became an in-app notification
+
+`queue_booking_confirmation` was the only booking notification and it was an SMS.
+Rather than delete the seam and silently stop telling customers their booking was
+confirmed, it now writes the `notifications` row and fires the push, on the same
+post-commit background task.
+
+### `logout` now revokes what it always claimed to
+
+`AuthService.logout` used to ignore its argument entirely and commit nothing when
+`all_devices` was false, while the endpoint's description promised the presented
+token would be revoked. `/auth/logout` now takes the refresh token in the body —
+an access token names the user but not the session — and `logout_all` is a
+separate method. Setting a password revokes every session for the same reason.
+
+## What was deleted
+
+`app/core/integrations/sms/` (10 files), `app/modules/notifications/` (14 files),
+`app/core/webhooks/sms.py`, `docs/sms.md`, `tests/integrations/sms/` (9 files, 103
+tests), `tests/api/test_sms_webhook.py`, the `VerificationCode` model and
+repository, `SmsDeliveryError`, `InvalidCodeError`, `CodeExpiredError` and
+`generate_numeric_code`. `tenacity` and `respx` left `pyproject.toml` with them.
+
+Migration `9c1f4a7d2b30` drops `sms_messages` and `verification_codes`, deletes
+Apple rows and tightens `ck_auth_identities_provider` to `provider IN ('google')`,
+and drops `users.phone_verified_at`, `users.email_verified_at`,
+`staff_invitations.sms_sent_at` and `staff_invitations.sms_provider_id`. The
+downgrade restores the structure only — the rows are gone.
+
+`app/core/redis.py` has no caller now that the Eskiz token store is gone. It was
+kept rather than deleted: the availability cache is the next thing due to move
+into it.
+
+## Verification
+
+| Check | Result |
+| ----- | ------ |
+| `ruff check app tests` / `ruff format --check` | pass |
+| `mypy app` strict | pass — 413 files, 0 errors |
+| `pytest -q` (`AUTH_MODE=enforced`) | pass — 137 passed |
+| `alembic upgrade head` → `downgrade -1` → `upgrade head` | pass |
+| `alembic heads` | pass — single head `9c1f4a7d2b30` |
+| no `eskiz`/`SmsService`/`verification_code`/`otp`/`apple` left in `app/` | pass |
+| `/api/v1/auth/request-code`, `/verify-code`, `/social/{provider}` absent from OpenAPI | pass |
+| `/api/v1/webhooks/sms/...` absent from OpenAPI | pass |
+| forged, expired, wrong-`aud` and wrong-`iss` Google tokens all refused | pass — 9 tests |
+| three phone formats resolve to one account | pass |
+
+---
+
+# Part 8 — dropping subscriptions and multi-language content
+
+Two product decisions, taken together because both are "we are not building this
+yet" and both are schema-level.
+
+## What was removed
+
+**`subscriptions`** — the whole module. 3 tables, 20 files, plus the couplings it
+had grown into other modules: `payments.subscription_id`,
+`promo_code_redemptions.subscription_id`, three CHECK constraints that named
+`'subscription'` as a value, and `benefit_percent` in the booking price chain.
+
+**Multi-language content** — 11 `*_translations` tables collapsed into columns on
+their parent (`venues.name`, `menu_items.name`, `staff_roles.name`, ...). With them
+went 11 `_translation_subquery` helpers, every `DISTINCT ON` fallback join, and the
+`language_id` parameter threaded through repositories, services and 12 API files.
+
+## What was deliberately kept
+
+**`languages` and `users.language_id`.** They are not content localisation — they
+are the account's *interface* language preference, which the mobile client reads to
+pick its own strings. The `/api/v1/languages` endpoint still serves the picker.
+Dropping them would have been a separate product decision about a different feature.
+
+## Choices
+
+**The name went onto the parent row, not into a JSONB column.** A JSONB
+`{"uz": "...", "ru": "..."}` would have kept the door open for a second language
+without a migration, but it gives up the `gin_trgm_ops` index that venue and dish
+search depend on, and every read would need a key lookup with a fallback — which is
+the complexity we were removing. If Russian is added later the honest move is a new
+translations table, not a column that pretends to be one.
+
+**`NOT NULL` on the name, backfilled from `slug`.** The alternative was leaving it
+nullable and handling `None` at every read site — which is the same fallback logic
+under a different name. `slug` is a poor display string but it is unique, already
+Latin-script and human-readable; a row that renders as its slug is obviously wrong
+in the UI, whereas an empty string renders as a blank the eye skips over.
+
+**`ck_payments_exactly_one_target` became `booking_id IS NOT NULL`** rather than
+making the column `NOT NULL`. Every payment now settles a booking, but the rule
+lives in the constraint so that adding a second payment target later is a
+constraint rewrite, not a column-type migration on a table with rows in it.
+
+**The `*Row` dataclasses that only carried `name` were deleted.** With the name on
+the model, `AmenityRow(amenity=..., name=...)` was a wrapper around a wrapper. The
+ones that carry computed columns — `MenuItemRow.effective_price`,
+`VenueSearchRow.distance_m`, `MenuCategoryRow.item_count` — stayed, because those
+values genuinely do not live on the model.
+
+## Migrations
+
+Both were hand-written after autogenerate produced something that would have
+failed or lost data:
+
+**`drop subscriptions`** — autogenerate dropped `subscription_plans` before its
+children and emitted the downgrade in the same broken order, so both directions
+failed on a foreign key. It also cannot see CHECK constraint *text* changes at
+all, so all three constraint rewrites were invisible. Rewritten children-first,
+with a `RAISE EXCEPTION` guard that refuses to run if any payment still references
+a subscription.
+
+**`collapse translations to uzbek only`** — autogenerate dropped all 11 translation
+tables *before* adding the replacement columns, which would have discarded every
+name in the database, and added those columns `NOT NULL` to tables that already had
+rows, which fails outright. Rewritten as: add nullable → copy across with a
+`DISTINCT ON` that prefers Uzbek and falls back to any other language → backfill
+from `slug` → tighten to `NOT NULL` → move the trigram indexes → drop the sources.
+
+Both were verified `upgrade` → `downgrade` → `upgrade` with the seed data intact,
+and on a database built from `base` so the historical seed revision — which still
+writes to the translation tables that exist at that point in history — keeps working.
+
+## Verification
+
+| Check | Result |
+| ----- | ------ |
+| `ruff check .` / `ruff format --check .` | pass |
+| `mypy app tests` strict | pass — 477 files, 0 errors |
+| `pytest -q` | pass — 219 passed, 1 xfailed |
+| tables | 75 -> 64 |
+| routes | 114 -> 112 |
+| `alembic upgrade`/`downgrade`/`upgrade` round trip | pass, both revisions |
+| fresh database from `base` | pass — seed data lands in the new columns |
+| `alembic --autogenerate` drift | none |
+| stack boots, `/api/health` | pass |
+| `/api/v1/venue-types` reads the name off the row | pass — Restoran, To'yxona, Kafe |
+| `/api/v1/languages` still serves the UI picker | pass — uz, en, ru |
+| OTP round trip still works | pass |
+| no `subscription` in the OpenAPI document | pass |
 
 ---
 
@@ -322,14 +611,11 @@ calls that. The original `soft_delete` is left in place, unused and still broken
 
 ### Registration never creates a user before verification
 
-`AuthService.request_code` writes only a hashed code. The `users` row appears on
-the first successful `verify_code`. Creating it earlier would let anyone mint rows
-for numbers they do not control and collide on `users.phone` when the real owner
-signs up. Asserted directly in `test_auth_service.py`.
-
-The failed-attempt path commits before raising — deliberately, in a named helper.
-Rolling that back would leave the attempt counter at zero and the five-attempt
-lockout would never fire.
+**Reversed in Part 9.** There is no verification step any more, so the `users` row
+is created by `AuthService.register` — the first request that carries a name.
+`users.phone` being unique is now the only thing standing between two people and
+the same number, which is why `register` checks and then still translates the
+integrity error the unique index raises.
 
 ### The deposit is subtracted, never added
 
@@ -382,9 +668,10 @@ the card to be stored at all.
 owner's own response. It is a bearer credential for check-in, so it is absent from
 every list and every venue-side schema.
 
-The temporary staff password exists in memory only long enough to reach the SMS
-transport: never returned, never persisted, never logged. `LoggingSmsSender` logs
-the length of a message, not its body.
+The temporary staff password is the one exception, added in Part 9:
+`StaffInvitationCreated` returns it from the create call and nowhere else. With
+SMS gone there is no channel to deliver it down, and an invitation nobody can
+redeem is worse. It is still never persisted in the clear and never logged.
 
 ### `float` in schemas
 

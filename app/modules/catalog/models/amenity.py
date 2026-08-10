@@ -13,3 +13,4 @@ class Amenity(IdIntPk, TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     icon_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -63,7 +63,7 @@ async def test_lead_time_shorter_than_required_raises(session: AsyncSession) -> 
     )
 
     with pytest.raises(LeadTimeTooShortError) as exc_info:
-        await BookingService(session).create_table_reservation(user.id, payload, 1)
+        await BookingService(session).create_table_reservation(user.id, payload)
 
     assert exc_info.value.details is not None
     assert exc_info.value.details["required_days"] == 3
@@ -79,7 +79,6 @@ async def test_deposit_is_subtracted_from_the_total_not_added(
     is unchanged by it.
     """
     group, venue, table = await make_bookable_venue(session, deposit_percent="30")
-    language = await factories.get_language(session)
     item = await factories.make_menu_item(session, group, base_price=Decimal("100000.00"))
     await factories.make_menu_branch(session, item, venue)
     user = await factories.make_user(session)
@@ -96,7 +95,7 @@ async def test_deposit_is_subtracted_from_the_total_not_added(
         contact_phone=CONTACT_PHONE,
     )
 
-    detail = await BookingService(session).create_table_reservation(user.id, payload, language.id)
+    detail = await BookingService(session).create_table_reservation(user.id, payload)
 
     subtotal = Decimal("200000.00")
     assert detail.booking.subtotal == subtotal
@@ -130,7 +129,7 @@ async def test_double_booking_surfaces_as_a_domain_error(session: AsyncSession) 
         contact_name=CONTACT_NAME,
         contact_phone=CONTACT_PHONE,
     )
-    await service.create_table_reservation(user.id, first, 1)
+    await service.create_table_reservation(user.id, first)
 
     overlapping = TableReservationCreate(
         venue_id=venue.id,
@@ -143,7 +142,7 @@ async def test_double_booking_surfaces_as_a_domain_error(session: AsyncSession) 
         contact_phone=CONTACT_PHONE,
     )
     with pytest.raises(TableAlreadyBookedError):
-        await service.create_table_reservation(user.id, overlapping, 1)
+        await service.create_table_reservation(user.id, overlapping)
 
 
 async def test_check_in_by_staff_of_another_venue_is_refused(
@@ -166,7 +165,6 @@ async def test_check_in_by_staff_of_another_venue_is_refused(
             contact_name=CONTACT_NAME,
             contact_phone=CONTACT_PHONE,
         ),
-        1,
     )
     await service.bookings.set_status(detail.booking.id, BookingStatus.CONFIRMED, utcnow_naive())
     await session.flush()
@@ -198,7 +196,6 @@ async def test_second_qr_scan_raises(session: AsyncSession) -> None:
             contact_name=CONTACT_NAME,
             contact_phone=CONTACT_PHONE,
         ),
-        1,
     )
     await service.bookings.set_status(detail.booking.id, BookingStatus.CONFIRMED, utcnow_naive())
     await session.flush()
@@ -228,7 +225,7 @@ async def test_table_too_small_for_the_party_raises(session: AsyncSession) -> No
     )
 
     with pytest.raises(CapacityExceededError):
-        await BookingService(session).create_table_reservation(user.id, payload, 1)
+        await BookingService(session).create_table_reservation(user.id, payload)
 
 
 async def test_hall_event_without_a_matching_tier_raises(session: AsyncSession) -> None:
@@ -259,4 +256,4 @@ async def test_hall_event_without_a_matching_tier_raises(session: AsyncSession) 
     )
 
     with pytest.raises(CapacityExceededError):
-        await BookingService(session).create_hall_event(user.id, payload, 1)
+        await BookingService(session).create_hall_event(user.id, payload)

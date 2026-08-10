@@ -16,9 +16,15 @@ from typing import Annotated
 from fastapi import Depends, Header, Path, Query, Request, params
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.auth_mode import AuthConfigurationError, auth_disabled, dev_user_id
 from app.core.config import settings
 from app.core.database.db_helper import db_helper
-from app.core.exceptions import PermissionDeniedError, ValidationFailedError
+from app.core.exceptions import (
+    AuthenticationRequiredError,
+    NotFoundError,
+    PermissionDeniedError,
+    ValidationFailedError,
+)
 from app.core.security import TokenError, decode_access_token
 from app.modules.auth.enums import UserStatus
 from app.modules.auth.schemas import UserRead
@@ -60,15 +66,21 @@ async def get_current_user(
 
     A soft-deleted or non-active account is rejected here rather than deeper in,
     so no service ever has to ask whether its caller still exists.
+
+    A missing or unreadable token is a 401 and a blocked account is a 403: the
+    first is fixed by signing in again and the second is not.
     """
+    if auth_disabled():
+        return await _dev_user(session)
+
     token = _bearer_token(authorization)
     if token is None:
-        raise PermissionDeniedError("Avtorizatsiya talab qilinadi")
+        raise AuthenticationRequiredError()
 
     try:
         user_id = decode_access_token(token, settings.security.secret_key)
     except TokenError as error:
-        raise PermissionDeniedError("Kirish tokeni yaroqsiz") from error
+        raise AuthenticationRequiredError("Kirish tokeni yaroqsiz") from error
 
     # `get_profile` already excludes soft-deleted rows.
     user = await UserService(session).get_profile(user_id)
@@ -78,6 +90,22 @@ async def get_current_user(
             details={"status": user.status},
         )
     return user
+
+
+async def _dev_user(session: AsyncSession) -> UserRead:
+    """Who every request is while `AUTH_MODE=disabled`.
+
+    A real row, so `user.id` is a usable foreign key and ownership checks run their
+    real code path. A missing row is reported as what it is — a misconfiguration —
+    rather than as the 404 `get_profile` would otherwise raise.
+    """
+    user_id = dev_user_id()
+    try:
+        return await UserService(session).get_profile(user_id)
+    except NotFoundError as error:
+        raise AuthConfigurationError(
+            f"SECURITY__DEV_USER_ID={user_id} does not exist in `users`."
+        ) from error
 
 
 CurrentUser = Annotated[UserRead, Depends(get_current_user)]
@@ -96,14 +124,17 @@ async def get_current_user_pending_ok(
 
     Blocked and deleted accounts are still refused.
     """
+    if auth_disabled():
+        return await _dev_user(session)
+
     token = _bearer_token(authorization)
     if token is None:
-        raise PermissionDeniedError("Avtorizatsiya talab qilinadi")
+        raise AuthenticationRequiredError()
 
     try:
         user_id = decode_access_token(token, settings.security.secret_key)
     except TokenError as error:
-        raise PermissionDeniedError("Kirish tokeni yaroqsiz") from error
+        raise AuthenticationRequiredError("Kirish tokeni yaroqsiz") from error
 
     user = await UserService(session).get_profile(user_id)
     if user.status not in (UserStatus.ACTIVE, UserStatus.PENDING_PROFILE):
@@ -120,14 +151,16 @@ async def get_current_user_optional(
 ) -> UserRead | None:
     """For endpoints that personalise but do not require auth.
 
-    A bad token is treated as no token: venue search must not start returning 403
+    A bad token is treated as no token: venue search must not start returning 401
     because someone's session quietly expired.
     """
+    if auth_disabled():
+        return await _dev_user(session)
     if _bearer_token(authorization) is None:
         return None
     try:
         return await get_current_user(session, authorization)
-    except PermissionDeniedError:
+    except AuthenticationRequiredError, PermissionDeniedError:
         return None
 
 
@@ -210,8 +243,8 @@ def get_client_location(
 ClientLocationDep = Annotated[ClientLocation | None, Depends(get_client_location)]
 
 
-def require_permission(slug: str) -> params.Depends:
-    """Dependency factory guarding every staff-facing write.
+class PermissionRequired:
+    """Guards a staff-facing write, and resolves the caller while it is there.
 
     `venue_id` is read from the path when the route is nested under a branch, and
     from the query otherwise. Group-scoped roles (owner, admin) satisfy a
@@ -219,26 +252,94 @@ def require_permission(slug: str) -> params.Depends:
     `VenueStaffRepository.has_permission`, one join in the database.
 
     Failure raises rather than returning False, so a caller cannot forget to check
-    the result and let an unauthorised write through.
+    the result and let an unauthorised write through. It raises a `DomainError`,
+    never `HTTPException`: `app/core/handlers.py` owns the status code.
+
+    Returning the `UserRead` is what lets a route declare one parameter instead of
+    two. Before this, a write took both `user: CurrentUser` and the guard, which
+    resolved the same user a second time and let the two drift apart in principle.
+
+    A class rather than a closure so the slug is readable from the outside —
+    `tests/api/test_contract.py` walks the dependant tree and asserts on
+    `.slug`, which a closure could not expose.
     """
 
-    async def dependency(
+    def __init__(self, slug: str) -> None:
+        self.slug = slug
+
+    async def __call__(
+        self,
         request: Request,
         session: SessionDep,
         user: CurrentUser,
         venue_id_query: Annotated[int | None, Query(alias="venue_id")] = None,
-    ) -> int:
+    ) -> UserRead:
+        if auth_disabled():
+            return user
         raw = request.path_params.get("venue_id", venue_id_query)
         if raw is None:
             raise ValidationFailedError(
                 "Bu amal uchun `venue_id` talab qilinadi",
-                details={"permission": slug},
+                details={"permission": self.slug},
             )
-        venue_id = int(raw)
-        await StaffService(session).require_permission_in_transaction(user.id, venue_id, slug)
-        return venue_id
+        await StaffService(session).require_permission_in_transaction(user.id, int(raw), self.slug)
+        return user
 
-    guard: params.Depends = Depends(dependency)
+
+class GroupPermissionRequired:
+    """The same guard, scoped to a chain rather than a branch.
+
+    `PermissionRequired` cannot guard a route that *creates* a branch: it needs a
+    `venue_id`, and the branch being created does not have one yet. This resolves
+    a `group_id` instead and asks whether the caller holds the slug anywhere in
+    that chain — a group-scoped row, or any branch of it.
+
+    Deliberately a second class rather than a `scope=` argument on the first: a
+    route picks one scope or the other, and a guard that silently changes meaning
+    depending on which query param arrived is the kind that gets misread.
+    """
+
+    def __init__(self, slug: str) -> None:
+        self.slug = slug
+
+    async def __call__(
+        self,
+        request: Request,
+        session: SessionDep,
+        user: CurrentUser,
+        group_id_query: Annotated[int | None, Query(alias="group_id")] = None,
+    ) -> UserRead:
+        if auth_disabled():
+            return user
+        raw = request.path_params.get("group_id", group_id_query)
+        if raw is None:
+            raise ValidationFailedError(
+                "Bu amal uchun `group_id` talab qilinadi",
+                details={"permission": self.slug},
+            )
+        await StaffService(session).require_group_permission_in_transaction(
+            user.id, int(raw), self.slug
+        )
+        return user
+
+
+def require_permission(slug: str) -> params.Depends:
+    """`Depends` around `PermissionRequired`, usable two ways.
+
+    In a signature it hands back the caller:
+
+        user: Annotated[UserRead, require_permission("branch.manage")]
+
+    In `dependencies=[...]` it just guards, for the routes that never need the
+    user. Both resolve the same object, so there is one guard, not two shapes.
+    """
+    guard: params.Depends = Depends(PermissionRequired(slug))
+    return guard
+
+
+def require_group_permission(slug: str) -> params.Depends:
+    """`Depends` around `GroupPermissionRequired`. See `require_permission`."""
+    guard: params.Depends = Depends(GroupPermissionRequired(slug))
     return guard
 
 

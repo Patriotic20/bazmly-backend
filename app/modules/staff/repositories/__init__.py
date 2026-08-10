@@ -4,7 +4,6 @@ from app.modules.staff.repositories.staff_invitation_repository import (
 )
 from app.modules.staff.repositories.staff_role_repository import (
     StaffRoleRepository,
-    StaffRoleRow,
     StaffRoleWithPermissions,
 )
 from app.modules.staff.repositories.venue_staff_repository import (
@@ -17,7 +16,6 @@ __all__ = [
     "StaffCounts",
     "StaffInvitationRepository",
     "StaffRoleRepository",
-    "StaffRoleRow",
     "StaffRoleWithPermissions",
     "VenueStaffRepository",
 ]

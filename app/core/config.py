@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from pydantic import BaseModel, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,6 +31,19 @@ class CorsConfig(BaseModel):
     allow_headers: list[str] = ["*"]
 
 
+class AuthMode(StrEnum):
+    """Whether the API checks who is calling.
+
+    `disabled` exists for local work against a database whose login flow is not
+    wired up yet. It is the most dangerous setting in the system — it turns off
+    authentication *and* authorization, at every layer — so it is fatal outside
+    `local` and the process refuses to start. See `app/core/auth_mode.py`.
+    """
+
+    ENFORCED = "enforced"
+    DISABLED = "disabled"
+
+
 class SecurityConfig(BaseModel):
     """Signing material for access tokens.
 
@@ -40,12 +55,41 @@ class SecurityConfig(BaseModel):
     access_token_ttl_minutes: int = 15
     refresh_token_ttl_days: int = 30
 
+    auth_mode: AuthMode = AuthMode.ENFORCED
+    # Who every request is, when `auth_mode` is `disabled`. A real row rather than a
+    # synthetic id: `user.id` is a foreign key on bookings, orders and messages, so
+    # a made-up one turns "auth is off" into "every write fails on a constraint".
+    dev_user_id: int | None = None
 
-class WebhookConfig(BaseModel):
-    """Shared secrets for provider callbacks. Empty means the provider is off."""
 
-    payme_secret: str = ""
-    click_secret: str = ""
+class AppEnv(StrEnum):
+    LOCAL = "local"
+    STAGING = "staging"
+    PRODUCTION = "production"
+
+
+class GoogleSettings(BaseModel):
+    """Google Sign-In.
+
+    `client_ids` is a list because iOS, Android and web each get their own OAuth
+    client from Google and every one of them mints tokens with its own `aud`. An
+    empty list means Google sign-in is off — unlike the auth kill switch this is
+    not fatal at startup, since an app can ship perfectly well with phone login
+    only. The endpoint refuses instead.
+    """
+
+    client_ids: list[str] = []
+    jwks_url: str = "https://www.googleapis.com/oauth2/v3/certs"
+    timeout_seconds: float = 5.0
+    jwks_cache_seconds: int = 60 * 60
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_ids)
+
+
+class RedisConfig(BaseModel):
+    url: str = "redis://localhost:6379/0"
 
 
 class LoggingConfig(BaseModel):
@@ -62,13 +106,15 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    env: AppEnv = AppEnv.LOCAL
     database: DatabaseConfig
     run: RunConfig = RunConfig()
     api: ApiPrefix = ApiPrefix()
     cors: CorsConfig = CorsConfig()
     logging: LoggingConfig = LoggingConfig()
     security: SecurityConfig = SecurityConfig()
-    webhooks: WebhookConfig = WebhookConfig()
+    google: GoogleSettings = GoogleSettings()
+    redis: RedisConfig = RedisConfig()
 
 
 settings = Settings()

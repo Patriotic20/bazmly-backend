@@ -1,6 +1,6 @@
 """Hashing and secret generation.
 
-One-way only. Verification codes, refresh tokens and temporary staff passwords are
+One-way only. Account passwords, refresh tokens and temporary staff passwords are
 stored as hashes and compared with a constant-time equality check, so a database
 leak does not hand over live credentials and a timing difference does not leak a
 prefix.
@@ -17,11 +17,10 @@ import jwt
 PBKDF2_ROUNDS = 240_000
 SALT_BYTES = 16
 
-CODE_DIGITS = 6
 LOGIN_LENGTH = 8
 PASSWORD_LENGTH = 10
 
-# Ambiguous glyphs removed: these are read off an SMS and typed by hand.
+# Ambiguous glyphs removed: these are read off a screen and typed by hand.
 _LOGIN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
 _PASSWORD_ALPHABET = string.ascii_letters.replace("l", "").replace("O", "") + "23456789"
 
@@ -40,12 +39,6 @@ def verify_secret(secret: str, stored: str) -> bool:
         return False
     digest = hashlib.pbkdf2_hmac("sha256", secret.encode(), salt.encode(), PBKDF2_ROUNDS).hex()
     return hmac.compare_digest(digest, expected)
-
-
-def generate_numeric_code(digits: int = CODE_DIGITS) -> str:
-    """A zero-padded numeric OTP from the system CSPRNG."""
-    upper = 10**digits
-    return str(secrets.randbelow(upper)).zfill(digits)
 
 
 def generate_login(prefix: str = "bz") -> str:

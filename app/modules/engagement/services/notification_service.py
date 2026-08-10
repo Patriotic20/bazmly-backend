@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -11,6 +12,8 @@ from app.modules.auth.repositories import DeviceRepository
 from app.modules.engagement.models import Notification
 from app.modules.engagement.repositories import NotificationRepository
 from app.modules.engagement.schemas import NotificationRead, UnreadCountRead
+
+logger = logging.getLogger("app.notifications")
 
 
 class NotificationService:

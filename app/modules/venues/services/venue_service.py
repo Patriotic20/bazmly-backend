@@ -9,7 +9,6 @@ from app.core.pagination import Page
 from app.modules.catalog.schemas import AmenityRead, VenueTypeRead
 from app.modules.staff.services import StaffService
 from app.modules.venues.enums import VenueStatus
-from app.modules.venues.models import Venue
 from app.modules.venues.repositories import VenueRepository
 from app.modules.venues.schemas import (
     VenueDetailRead,
@@ -32,7 +31,7 @@ class VenueService:
         self.staff = StaffService(session)
 
     async def search(
-        self, params: VenueSearchParams, language_id: int, local_dt: datetime | None = None
+        self, params: VenueSearchParams, local_dt: datetime | None = None
     ) -> Page[VenueListItem]:
         """The home screen.
 
@@ -41,7 +40,6 @@ class VenueService:
         Yopiq badge.
         """
         page = await self.venues.search(
-            language_id=language_id,
             local_dt=local_dt or utcnow_naive(),
             limit=params.limit,
             offset=params.offset,
@@ -76,10 +74,8 @@ class VenueService:
         ]
         return Page(items=items, total=page.total, limit=page.limit, offset=page.offset)
 
-    async def get_detail(
-        self, venue_id: int, language_id: int, local_dt: datetime | None = None
-    ) -> VenueDetailRead:
-        detail = await self.venues.get_detail(venue_id, language_id)
+    async def get_detail(self, venue_id: int, local_dt: datetime | None = None) -> VenueDetailRead:
+        detail = await self.venues.get_detail(venue_id)
         if detail is None:
             raise NotFoundError("Muassasa topilmadi")
 
@@ -128,7 +124,7 @@ class VenueService:
 
     async def list_for_group(self, group_id: int, status: str | None = None) -> Sequence[VenueRead]:
         venues = await self.venues.list_by_group(group_id, status)
-        return [_venue_read(venue) for venue in venues]
+        return [VenueRead.model_validate(venue) for venue in venues]
 
     async def status_counts(self, group_id: int) -> VenueStatusCountsRead:
         counts = await self.venues.count_by_status_for_group(group_id)
@@ -144,20 +140,8 @@ class VenueService:
         if updated is None:
             raise NotFoundError("Muassasa topilmadi")
         await self.session.commit()
-        return _venue_read(updated)
+        return VenueRead.model_validate(updated)
 
     async def recompute_rating_in_transaction(self, venue_id: int) -> None:
         """Denormalized counters are service-owned; no DB trigger does this."""
         await self.venues.recompute_rating(venue_id)
-
-
-# TODO(service): fixed by the API task — `VenueRead.name` is a resolved
-# translation, not a column, so `model_validate` on the ORM row failed on a
-# missing required field before `model_copy` could supply it. See DECISIONS.md.
-def _venue_read(venue: Venue, name: str = "") -> VenueRead:
-    """Build the schema with the translated name supplied explicitly.
-
-    Callers that know the language use `get_detail`, which resolves the real name;
-    these paths return the row itself and leave naming to the caller.
-    """
-    return VenueRead.model_validate({**venue.__dict__, "name": name})

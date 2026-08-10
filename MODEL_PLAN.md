@@ -1,6 +1,6 @@
 # Model plan
 
-77 models across 17 modules, one model per file. All created — this file is the
+68 models across 15 modules, one model per file. All created — this file is the
 plan that was written before the files, kept as the index of what exists.
 
 ## Module → model files
@@ -9,7 +9,7 @@ plan that was written before the files, kept as the index of what exists.
 | --- | --: | --- |
 | `localization` | 1 | `language.py` |
 | `geo` | 3 | `region.py`, `district.py`, `user_recent_location.py` |
-| `auth` | 6 | `user.py`, `auth_identity.py`, `verification_code.py`, `refresh_token.py`, `device.py`, `friendship.py` |
+| `auth` | 5 | `user.py`, `auth_identity.py`, `refresh_token.py`, `device.py`, `friendship.py` |
 | `catalog` | 4 | `venue_type.py`, `venue_type_translation.py`, `amenity.py`, `amenity_translation.py` |
 | `venue_groups` | 2 | `venue_group.py`, `venue_group_translation.py` |
 | `venues` | 12 | `venue.py`, `venue_translation.py`, `venue_venue_type.py`, `venue_photo.py`, `venue_working_hours.py`, `venue_special_day.py`, `venue_amenity.py`, `venue_zone.py`, `venue_zone_translation.py`, `venue_table.py`, `venue_table_qr.py`, `venue_guest_tier.py` |
@@ -18,13 +18,11 @@ plan that was written before the files, kept as the index of what exists.
 | `services` | 4 | `service_catalog.py`, `service_catalog_translation.py`, `venue_service.py`, `venue_service_item.py` |
 | `bookings` | 6 | `booking.py`, `booking_item.py`, `booking_service.py`, `booking_price_line.py`, `booking_status_history.py`, `venue_blocked_slot.py` |
 | `orders` | 5 | `order.py`, `order_item.py`, `order_status_history.py`, `order_payment.py`, `receipt.py` |
-| `payments` | 3 | `payment_card.py`, `payment.py`, `refund.py` |
 | `subscriptions` | 3 | `subscription_plan.py`, `subscription_plan_translation.py`, `user_subscription.py` |
-| `promotions` | 5 | `promo_code.py`, `user_promo_code.py`, `promo_code_redemption.py`, `banner.py`, `banner_translation.py` |
 | `reviews` | 3 | `review.py`, `review_photo.py`, `review_reply.py` |
 | `engagement` | 5 | `favorite.py`, `search_history.py`, `conversation.py`, `message.py`, `notification.py` |
 | `analytics` | 1 | `venue_daily_stats.py` |
-| **Total** | **77** | |
+| **Total** | **68** | |
 
 Not created, by instruction: `venue_hourly_load` (fixed decision 8) and the four
 `catering_*` tables (fixed decision 6, superseded by `service_catalog` /
@@ -46,26 +44,24 @@ keep `IdIntPk` and `TimestampMixin`.
 
 ## Migration order
 
-19 revisions, one per module plus extensions and seed:
+17 revisions, one per module plus extensions and seed:
 
 ```
 extensions → localization → geo → auth → catalog → venue_groups → venues
-  → staff → menu → services → promotions → subscriptions → bookings
-  → orders → payments → reviews → engagement → analytics → seed
+  → staff → menu → services → subscriptions → bookings → orders
+  → reviews → engagement → analytics → seed
 ```
 
-### Forward-pointing foreign keys
+### Forward-pointing foreign key
 
-Three FKs point at tables that the fixed order creates later. Each is created by
+One FK points at a table that the fixed order creates later, so it is created by
 a subsequent revision instead of with its own table:
 
 | Column | Target | Created in |
 | --- | --- | --- |
 | `user_recent_locations.user_id` | `users` | `auth` |
-| `promo_code_redemptions.booking_id` | `bookings` | `bookings` |
-| `promo_code_redemptions.subscription_id` | `user_subscriptions` | `bookings` |
 
-The first is a genuine cycle: `geo.user_recent_locations` → `users`, while
+It is a genuine cycle: `geo.user_recent_locations` → `users`, while
 `auth.users` → `districts`.
 
 ## Source coverage

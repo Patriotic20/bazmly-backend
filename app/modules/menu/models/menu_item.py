@@ -1,7 +1,16 @@
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
@@ -24,6 +33,12 @@ class MenuItem(IdIntPk, TimestampMixin, Base):
 
     __tablename__ = "menu_items"
     __table_args__ = (
+        Index(
+            "ix_menu_items_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ),
         CheckConstraint(
             "(has_variants = false AND base_price IS NOT NULL)"
             " OR (has_variants = true AND base_price IS NULL)",
@@ -45,3 +60,5 @@ class MenuItem(IdIntPk, TimestampMixin, Base):
     has_variants: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     discount_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default=MenuItemStatus.ACTIVE, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
