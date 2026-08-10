@@ -2,15 +2,21 @@
 
 from datetime import time
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.dependencies import PlatformRoleRequired
+from app.core.exceptions import PermissionDeniedError
+from app.modules.auth.enums import UserRole
+from app.modules.auth.schemas import UserRead
 from app.modules.staff.models import StaffRole
 from app.modules.venue_groups.models import VenueGroup
 from app.modules.venues.models import Venue
 from tests.api.conftest import auth_header
 from tests.repositories import factories
+from tests.repositories.factories import make_user
 
 BRANCH_MANAGE = "branch.manage"
 
@@ -110,3 +116,20 @@ async def test_unauthenticated_staff_write_is_refused(api_client: AsyncClient) -
 
     assert response.status_code == 401
     assert response.json()["code"] == "unauthenticated"
+
+
+async def test_platform_role_guard_rejects_a_customer(session: AsyncSession) -> None:
+    """Platform role is a different axis from staff permissions: an admin of one
+    venue group must not thereby be an admin of the country's district list."""
+    guard = PlatformRoleRequired(UserRole.ADMIN)
+    customer = await make_user(session, role=UserRole.CUSTOMER)
+
+    with pytest.raises(PermissionDeniedError):
+        await guard(user=UserRead.model_validate(customer))
+
+
+async def test_platform_role_guard_accepts_an_admin(session: AsyncSession) -> None:
+    guard = PlatformRoleRequired(UserRole.ADMIN)
+    admin = await make_user(session, role=UserRole.ADMIN)
+
+    assert (await guard(user=UserRead.model_validate(admin))).id == admin.id

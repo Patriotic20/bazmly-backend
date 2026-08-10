@@ -27,7 +27,7 @@ from app.core.exceptions import (
     ValidationFailedError,
 )
 from app.core.security import TokenError, decode_access_token
-from app.modules.auth.enums import UserStatus
+from app.modules.auth.enums import UserRole, UserStatus
 from app.modules.auth.schemas import UserRead
 from app.modules.auth.services import UserService
 from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE
@@ -353,6 +353,44 @@ def require_group_permission(slug: str) -> params.Depends:
     """`Depends` around `GroupPermissionRequired`. See `require_permission`."""
     guard: params.Depends = Depends(GroupPermissionRequired(slug))
     return guard
+
+
+class PlatformRoleRequired:
+    """Guards a platform-wide write on the caller's own `users.role`.
+
+    A different axis from `PermissionRequired`: that one asks what the caller may
+    do inside one venue group, which is the wrong question for national reference
+    data. A group owner holds `admin` *within their chain* and must not thereby be
+    able to rename a viloyat.
+
+    Reads nothing from the database — the role is already on the resolved
+    `UserRead`, so this is one comparison and no query.
+
+    A class rather than a closure so `.roles` stays readable from outside, the way
+    `tests/api/test_contract.py` reads `.slug` off the staff guards.
+    """
+
+    def __init__(self, *roles: UserRole) -> None:
+        self.roles = frozenset(roles)
+
+    async def __call__(self, user: CurrentUser) -> UserRead:
+        if auth_disabled():
+            return user
+        if user.role not in self.roles:
+            raise PermissionDeniedError(
+                "Bu amal uchun ruxsat yo'q",
+                details={"required_roles": sorted(role.value for role in self.roles)},
+            )
+        return user
+
+
+def require_platform_role(*roles: UserRole) -> params.Depends:
+    """`Depends` around `PlatformRoleRequired`. See `require_permission`."""
+    guard: params.Depends = Depends(PlatformRoleRequired(*roles))
+    return guard
+
+
+AdminUser = Annotated[UserRead, require_platform_role(UserRole.ADMIN, UserRole.MODERATOR)]
 
 
 def venue_id_path(venue_id: Annotated[int, Path(ge=1)]) -> int:
