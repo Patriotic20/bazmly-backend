@@ -25,7 +25,7 @@ router = APIRouter(prefix="/v1", tags=["services"])
 )
 async def list_catalog(
     session: SessionDep,
-    venue_type: VenueTypeSlug | None = None,
+    venue_type: Annotated[VenueTypeSlug | None, Query()] = None,
 ) -> Sequence[ServiceCatalogRead]:
     return await VenueServiceCatalogService(session).list_catalog(venue_type)
 

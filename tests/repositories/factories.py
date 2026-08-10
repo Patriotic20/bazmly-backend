@@ -23,6 +23,7 @@ from app.modules.menu.models import (
     MenuItemBranch,
     MenuItemStatus,
 )
+from app.modules.services.models import ServiceCatalog
 from app.modules.staff.models import (
     Permission,
     StaffRole,
@@ -144,6 +145,30 @@ async def make_venue(
     session.add(venue)
     await session.flush()
     return venue
+
+
+async def make_service_catalog_entry(
+    session: AsyncSession,
+    *,
+    applies_to_venue_type: VenueTypeSlug | None = None,
+    name: str = "Dasturxon tuzash",
+) -> ServiceCatalog:
+    """One row of the platform-owned service catalogue.
+
+    Built rather than read from the seed on purpose: every seeded row has a NULL
+    `applies_to_venue_type`, so a filter test that leaned on them would pass even
+    if the type-specific leg were broken.
+    """
+    entry = ServiceCatalog(
+        slug=f"xizmat-{unique_suffix()}",
+        name=name,
+        applies_to_venue_type=applies_to_venue_type,
+        sort_order=0,
+        is_active=True,
+    )
+    session.add(entry)
+    await session.flush()
+    return entry
 
 
 async def make_working_hours(
