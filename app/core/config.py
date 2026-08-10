@@ -1,7 +1,11 @@
 from enum import StrEnum
+from pathlib import Path
 
 from pydantic import BaseModel, PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# app/core/config.py -> app/core -> app -> backend/
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
 class DatabaseConfig(BaseModel):
@@ -78,8 +82,13 @@ class LoggingConfig(BaseModel):
 
 
 class Settings(BaseSettings):
+    # The env files are addressed absolutely, not as `.env`. Relative paths
+    # resolve against the working directory, which would mean the settings a
+    # process gets depend on where it was launched from — and since `database.url`
+    # has no default, launching from the repository root instead of `backend/`
+    # would be a startup crash rather than a wrong value.
     model_config = SettingsConfigDict(
-        env_file=(".env.template", ".env"),
+        env_file=(BACKEND_ROOT / ".env.template", BACKEND_ROOT / ".env"),
         env_nested_delimiter="__",
         env_prefix="APP_CONFIG__",
         case_sensitive=False,
