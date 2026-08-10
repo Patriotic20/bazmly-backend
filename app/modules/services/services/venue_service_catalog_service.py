@@ -16,6 +16,7 @@ from app.modules.services.schemas import (
     VenueServiceRead,
 )
 from app.modules.staff.services import StaffService
+from app.modules.venues.enums import VenueTypeSlug
 
 PERM_SETTINGS_EDIT = "settings.edit"
 
@@ -33,15 +34,21 @@ class VenueServiceCatalogService:
         self.venue_services = VenueServiceRepository(session)
         self.staff = StaffService(session)
 
-    async def list_catalog(self, venue_type_id: int | None = None) -> Sequence[ServiceCatalogRead]:
-        rows = await self.catalog.list_active(venue_type_id)
+    async def list_catalog(
+        self, venue_type: VenueTypeSlug | None = None
+    ) -> Sequence[ServiceCatalogRead]:
+        rows = await self.catalog.list_active(venue_type)
         return [
             ServiceCatalogRead(
                 id=row.id,
                 slug=row.slug,
                 name=row.name,
                 icon_url=row.icon_url,
-                applies_to_venue_type_id=row.applies_to_venue_type_id,
+                applies_to_venue_type=(
+                    VenueTypeSlug(row.applies_to_venue_type)
+                    if row.applies_to_venue_type is not None
+                    else None
+                ),
                 sort_order=row.sort_order,
             )
             for row in rows

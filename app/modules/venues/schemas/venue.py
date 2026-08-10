@@ -4,8 +4,8 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from app.core.schemas import Money, PhoneNumber, ReadSchema, UpdateSchema
-from app.modules.catalog.schemas import AmenityRead, VenueTypeRead
-from app.modules.venues.enums import VenueStatus
+from app.modules.catalog.schemas import AmenityRead
+from app.modules.venues.enums import VenueStatus, VenueTypeSlug
 
 SORT_DISTANCE = "distance"
 SORT_RATING = "rating"
@@ -32,7 +32,7 @@ class VenueCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     tagline: str | None = Field(default=None, max_length=120)
-    venue_type_ids: list[int] = Field(default_factory=list)
+    venue_type: VenueTypeSlug
     amenity_ids: list[int] = Field(default_factory=list)
     total_seats: int | None = Field(default=None, gt=0)
     capacity_min: int | None = Field(default=None, gt=0)
@@ -66,6 +66,7 @@ class VenueUpdate(UpdateSchema):
     deposit_percent: Decimal | None = Field(default=None, ge=0, le=100)
     discount_percent: Decimal | None = Field(default=None, ge=0, le=100)
     manager_user_id: int | None = None
+    venue_type: VenueTypeSlug | None = None
     status: VenueStatus | None = None
 
 
@@ -98,6 +99,7 @@ class VenueRead(ReadSchema):
     description: str | None = None
     tagline: str | None = None
     district_id: int
+    venue_type: VenueTypeSlug
     street: str
     house_number: str
     latitude: Decimal
@@ -140,7 +142,7 @@ class VenueDetailRead(ReadSchema):
     venue: VenueRead
     photos: list[VenuePhotoRead]
     amenities: list[AmenityRead]
-    venue_types: list[VenueTypeRead]
+    venue_type: VenueTypeSlug
     working_hours: list[VenueWorkingHoursRead]
     is_open_now: bool = False
 
@@ -149,7 +151,7 @@ class VenueSearchParams(BaseModel):
     """Bosh ekran filtrlari — o'n beshta alohida parametr o'rniga bitta obyekt."""
 
     query: str | None = Field(default=None, max_length=255)
-    venue_type_ids: list[int] | None = None
+    venue_type: VenueTypeSlug | None = None
     district_id: int | None = None
     guest_count: int | None = Field(default=None, gt=0)
     min_rating: Decimal | None = Field(default=None, ge=0, le=5)

@@ -27,10 +27,7 @@ from app.modules.bookings.models import (
     BookingStatusHistory,
     VenueBlockedSlot,
 )
-from app.modules.catalog.models import (
-    Amenity,
-    VenueType,
-)
+from app.modules.catalog.models import Amenity
 from app.modules.engagement.models import (
     Conversation,
     Favorite,
@@ -76,7 +73,6 @@ from app.modules.venues.models import (
     VenueSpecialDay,
     VenueTable,
     VenueTableQr,
-    VenueVenueType,
     VenueWorkingHours,
     VenueZone,
 )
@@ -132,8 +128,6 @@ __all__ = [
     "VenueStaff",
     "VenueTable",
     "VenueTableQr",
-    "VenueType",
-    "VenueVenueType",
     "VenueWorkingHours",
     "VenueZone",
 ]

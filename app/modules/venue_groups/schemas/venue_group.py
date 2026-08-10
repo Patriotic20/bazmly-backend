@@ -2,11 +2,12 @@ from pydantic import BaseModel, Field
 
 from app.core.schemas import ReadSchema, UpdateSchema
 from app.modules.venue_groups.enums import VenueGroupStatus
+from app.modules.venues.enums import VenueTypeSlug
 from app.modules.venues.schemas import VenueCreate
 
 
 class VenueGroupCreate(BaseModel):
-    primary_venue_type_id: int
+    primary_venue_type: VenueTypeSlug
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     logo_url: str | None = None
@@ -28,7 +29,7 @@ class VenueGroupWithBranchCreate(BaseModel):
 class VenueGroupUpdate(UpdateSchema):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
-    primary_venue_type_id: int | None = None
+    primary_venue_type: VenueTypeSlug | None = None
     logo_url: str | None = None
     default_currency: str | None = Field(default=None, min_length=3, max_length=3)
     status: VenueGroupStatus | None = None
@@ -39,7 +40,7 @@ class VenueGroupRead(ReadSchema):
 
     id: int
     owner_id: int
-    primary_venue_type_id: int
+    primary_venue_type: VenueTypeSlug
     name: str
     description: str | None = None
     logo_url: str | None = None

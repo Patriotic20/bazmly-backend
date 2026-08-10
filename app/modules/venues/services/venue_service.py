@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database.mixins import utcnow_naive
 from app.core.exceptions import NotFoundError
 from app.core.pagination import Page
-from app.modules.catalog.schemas import AmenityRead, VenueTypeRead
+from app.modules.catalog.schemas import AmenityRead
 from app.modules.staff.services import StaffService
 from app.modules.venues.enums import VenueStatus
 from app.modules.venues.repositories import VenueRepository
@@ -43,7 +43,7 @@ class VenueService:
             local_dt=local_dt or utcnow_naive(),
             limit=params.limit,
             offset=params.offset,
-            venue_type_ids=params.venue_type_ids,
+            venue_type=params.venue_type,
             district_id=params.district_id,
             guest_count=params.guest_count,
             min_rating=params.min_rating,
@@ -100,16 +100,7 @@ class VenueService:
                 )
                 for amenity, name in detail.amenities
             ],
-            venue_types=[
-                VenueTypeRead(
-                    id=vt.id,
-                    slug=vt.slug,
-                    name=vt.slug,
-                    icon_url=vt.icon_url,
-                    sort_order=vt.sort_order,
-                )
-                for vt in detail.venue_types
-            ],
+            venue_type=detail.venue_type,
             working_hours=[
                 VenueWorkingHoursRead(
                     weekday=row.weekday,

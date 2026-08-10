@@ -5,6 +5,7 @@ from datetime import time
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.venues.enums import VenueTypeSlug
 from tests.repositories import factories
 
 ORIGIN_LAT = 41.311081
@@ -92,3 +93,32 @@ async def test_search_is_paginated(api_client: AsyncClient, session: AsyncSessio
     assert len(body["items"]) == 2
     assert body["total"] >= 3
     assert body["limit"] == 2
+
+
+async def test_search_filters_by_venue_type(api_client: AsyncClient, session: AsyncSession) -> None:
+    restoran = await factories.make_venue(session, venue_type=VenueTypeSlug.RESTORAN)
+    await factories.make_venue(session, venue_type=VenueTypeSlug.TOYXONA)
+
+    response = await api_client.get("/api/v1/venues/search", params={"venue_type": "restoran"})
+
+    assert response.status_code == 200, response.text
+    returned = {item["id"] for item in response.json()["items"]}
+    assert returned == {restoran.id}
+
+
+async def test_search_rejects_an_unknown_venue_type(api_client: AsyncClient) -> None:
+    """An unknown value is now a schema error, not a silent empty result — there
+    is no lookup table left to miss.
+
+    `validation_error` rather than `validation_failed`: the enum refuses the value
+    in the request schema, so no service or query ever runs.
+    """
+    response = await api_client.get("/api/v1/venues/search", params={"venue_type": "kafe"})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_error"
+
+
+async def test_venue_types_endpoint_is_gone(api_client: AsyncClient) -> None:
+    """The two values ship in the client as an enum; there is nothing to fetch."""
+    assert (await api_client.get("/api/v1/venue-types")).status_code == 404

@@ -24,10 +24,16 @@ class VenueGroup(IdIntPk, TimestampMixin, Base):
     __tablename__ = "venue_groups"
     __table_args__ = (
         CheckConstraint("status IN ('draft', 'active', 'blocked')", name="ck_venue_groups_status"),
+        # Spelled out rather than derived from `VenueTypeSlug`: a model may not
+        # import another module's model file, and the enum lives beside `Venue`.
+        CheckConstraint(
+            "primary_venue_type IN ('restoran', 'toyxona')",
+            name="ck_venue_groups_primary_venue_type",
+        ),
     )
 
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    primary_venue_type_id: Mapped[int] = mapped_column(ForeignKey("venue_types.id"), nullable=False)
+    primary_venue_type: Mapped[str] = mapped_column(String(20), nullable=False)
     logo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     default_currency: Mapped[str] = mapped_column(String(3), default="UZS", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default=VenueGroupStatus.DRAFT, nullable=False)

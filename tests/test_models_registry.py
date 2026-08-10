@@ -20,9 +20,11 @@ def test_registry_covers_every_model_file() -> None:
 
     # 62 before the `payments` (3) and `promotions` (4) modules were dropped.
     # 55 before `auth_identity` was dropped with the Google sign-in surface.
-    assert len(model_files) == 54
-    assert len(Base.metadata.tables) == 54
-    assert len(models_registry.__all__) == 54
+    # 54 before `venue_type` and `venue_venue_type` were replaced by a column
+    # on `venues` (2026-08-10).
+    assert len(model_files) == 52
+    assert len(Base.metadata.tables) == 52
+    assert len(models_registry.__all__) == 52
 
 
 def test_no_model_imports_another_modules_model() -> None:
@@ -49,3 +51,20 @@ async def test_auth_identities_table_is_gone(session: AsyncSession) -> None:
     """The last provider left with Google, so the table has nothing to hold."""
     exists = await session.scalar(text("SELECT to_regclass('public.auth_identities') IS NOT NULL"))
     assert exists is False
+
+
+async def test_venue_type_tables_are_gone(session: AsyncSession) -> None:
+    """Two values do not need two tables."""
+    for table in ("venue_types", "venue_venue_types"):
+        exists = await session.scalar(text(f"SELECT to_regclass('public.{table}') IS NOT NULL"))
+        assert exists is False, f"{table} still exists"
+
+
+async def test_venue_carries_its_type_as_a_column(session: AsyncSession) -> None:
+    column = await session.scalar(
+        text("""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = 'venues' AND column_name = 'venue_type'
+        """)
+    )
+    assert column is not None

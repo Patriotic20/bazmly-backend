@@ -8,7 +8,7 @@ from app.core.exceptions import (
     ValidationFailedError,
 )
 from app.core.integrity import translate_integrity_error
-from app.modules.catalog.repositories import AmenityRepository, VenueTypeRepository
+from app.modules.catalog.repositories import AmenityRepository
 from app.modules.geo.repositories import DistrictRepository
 from app.modules.staff.models import VenueStaff
 from app.modules.staff.repositories import StaffRoleRepository, VenueStaffRepository
@@ -76,7 +76,6 @@ class VenueOnboardingService:
         self.groups = VenueGroupRepository(session)
         self.zones = VenueZoneRepository(session)
         self.districts = DistrictRepository(session)
-        self.venue_types = VenueTypeRepository(session)
         self.amenities = AmenityRepository(session)
         self.staff = VenueStaffRepository(session)
         self.roles = StaffRoleRepository(session)
@@ -99,9 +98,6 @@ class VenueOnboardingService:
         if existing is not None:
             raise GroupAlreadyExistsError(details={"group_id": existing.id})
 
-        if await self.venue_types.get_by_id(payload.group.primary_venue_type_id) is None:
-            raise NotFoundError("Bunday muassasa turi yo'q")
-
         owner_role = await self.roles.get_by_slug(OWNER_ROLE_SLUG)
         if owner_role is None:
             raise ValidationFailedError("Rollar sozlanmagan")
@@ -110,7 +106,7 @@ class VenueOnboardingService:
 
         group = VenueGroup(
             owner_id=owner_user_id,
-            primary_venue_type_id=payload.group.primary_venue_type_id,
+            primary_venue_type=payload.group.primary_venue_type,
             name=payload.group.name,
             description=payload.group.description,
             logo_url=payload.group.logo_url,
@@ -177,15 +173,14 @@ class VenueOnboardingService:
 
     async def _validate_branch_in_transaction(self, payload: VenueCreate) -> None:
         """Checked before anything is written, in the order that makes the message
-        useful: where it is, then what it is, then how big it is."""
+        useful: where it is, then how big it is.
+
+        The venue type is not checked here any more: `VenueTypeSlug` rejects an
+        unknown value at the Pydantic layer, before this is reached, so a lookup
+        would only cost a query it can never fail.
+        """
         if await self.districts.get_by_id(payload.district_id) is None:
             raise NotFoundError("Bunday tuman yo'q")
-
-        for venue_type_id in payload.venue_type_ids:
-            if await self.venue_types.get_by_id(venue_type_id) is None:
-                raise NotFoundError(
-                    "Bunday muassasa turi yo'q", details={"venue_type_id": venue_type_id}
-                )
 
         minimum, maximum = payload.capacity_min, payload.capacity_max
         if minimum is not None and maximum is not None and minimum > maximum:
@@ -204,6 +199,7 @@ class VenueOnboardingService:
         return Venue(
             owner_id=owner_id,
             district_id=payload.district_id,
+            venue_type=payload.venue_type,
             street=payload.street,
             house_number=payload.house_number,
             latitude=payload.latitude,
@@ -230,10 +226,11 @@ class VenueOnboardingService:
     async def _attach_branch_details_in_transaction(
         self, venue_id: int, payload: VenueCreate
     ) -> None:
-        """Types, amenities and the two default zones. No commit — the caller owns it."""
-        for venue_type_id in payload.venue_type_ids:
-            await self.venues.add_venue_type(venue_id, venue_type_id)
+        """Amenities and the two default zones. No commit — the caller owns it.
 
+        The venue type used to be attached here as a `venue_venue_types` row; it is
+        a column on the branch itself now, written by `_build_branch`.
+        """
         if payload.amenity_ids:
             await self.amenities.set_for_venue(venue_id, payload.amenity_ids)
 

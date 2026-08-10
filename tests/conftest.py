@@ -46,7 +46,7 @@ from app.main import app
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Everything a test may write, in one CASCADE. The seeded reference data
-# (languages, venue_types, staff_roles, permissions, service_catalog, amenities)
+# (languages, staff_roles, permissions, service_catalog, amenities)
 # is deliberately absent — factories depend on it and it is never mutated.
 DOMAIN_TABLES = (
     "bookings",

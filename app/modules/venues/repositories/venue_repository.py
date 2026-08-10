@@ -17,14 +17,14 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.pagination import Page
-from app.modules.catalog.models import Amenity, VenueType
+from app.modules.catalog.models import Amenity
 from app.modules.reviews.models import Review, ReviewStatus
+from app.modules.venues.enums import VenueTypeSlug
 from app.modules.venues.models import (
     Venue,
     VenueAmenity,
     VenuePhoto,
     VenueStatus,
-    VenueVenueType,
     VenueWorkingHours,
 )
 from app.modules.venues.models.venue_special_day import VenueSpecialDay
@@ -73,7 +73,7 @@ class VenueDetail:
     tagline: str | None
     photos: Sequence[VenuePhoto]
     amenities: Sequence[tuple[Amenity, str]]
-    venue_types: Sequence[VenueType]
+    venue_type: VenueTypeSlug
     working_hours: Sequence[VenueWorkingHours]
 
 
@@ -152,7 +152,7 @@ class VenueRepository:
         self,
         *,
         local_dt: datetime,
-        venue_type_ids: Sequence[int] | None,
+        venue_type: VenueTypeSlug | None,
         district_id: int | None,
         guest_count: int | None,
         min_rating: Decimal | None,
@@ -187,15 +187,8 @@ class VenueRepository:
         if point is not None and radius_m is not None:
             stmt = stmt.where(ST_DWithin(Venue.location, point, radius_m))
 
-        if venue_type_ids:
-            stmt = stmt.where(
-                select(VenueVenueType.venue_id)
-                .where(
-                    VenueVenueType.venue_id == Venue.id,
-                    VenueVenueType.venue_type_id.in_(venue_type_ids),
-                )
-                .exists()
-            )
+        if venue_type is not None:
+            stmt = stmt.where(Venue.venue_type == venue_type)
 
         if district_id is not None:
             stmt = stmt.where(Venue.district_id == district_id)
@@ -231,7 +224,7 @@ class VenueRepository:
         local_dt: datetime,
         limit: int = 20,
         offset: int = 0,
-        venue_type_ids: Sequence[int] | None = None,
+        venue_type: VenueTypeSlug | None = None,
         district_id: int | None = None,
         guest_count: int | None = None,
         min_rating: Decimal | None = None,
@@ -250,7 +243,7 @@ class VenueRepository:
         """
         stmt = self._search_statement(
             local_dt=local_dt,
-            venue_type_ids=venue_type_ids,
+            venue_type=venue_type,
             district_id=district_id,
             guest_count=guest_count,
             min_rating=min_rating,
@@ -295,6 +288,9 @@ class VenueRepository:
 
         Each collection is fetched explicitly rather than through `selectinload`,
         because the models declare no relationships — see REPOSITORY_PLAN.md.
+
+        `venue_type` costs no query: it arrives on the venue row itself, where the
+        lookup table and its join used to need a fourth round trip.
         """
         head = await self.session.execute(
             select(
@@ -321,13 +317,6 @@ class VenueRepository:
             .order_by(Amenity.sort_order)
         )
 
-        venue_types = await self.session.execute(
-            select(VenueType)
-            .join(VenueVenueType, VenueVenueType.venue_type_id == VenueType.id)
-            .where(VenueVenueType.venue_id == venue_id)
-            .order_by(VenueType.sort_order)
-        )
-
         working_hours = await self.session.execute(
             select(VenueWorkingHours)
             .where(VenueWorkingHours.venue_id == venue_id)
@@ -341,7 +330,7 @@ class VenueRepository:
             tagline=row[3],
             photos=photos.scalars().all(),
             amenities=[(a, a.name or a.slug) for a in amenities.scalars().all()],
-            venue_types=venue_types.scalars().all(),
+            venue_type=VenueTypeSlug(row[0].venue_type),
             working_hours=working_hours.scalars().all(),
         )
 
@@ -433,7 +422,3 @@ class VenueRepository:
             .order_by(VenuePhoto.is_cover.desc(), VenuePhoto.sort_order)
         )
         return result.scalars().all()
-
-    async def add_venue_type(self, venue_id: int, venue_type_id: int) -> None:
-        self.session.add(VenueVenueType(venue_id=venue_id, venue_type_id=venue_type_id))
-        await self.session.flush()

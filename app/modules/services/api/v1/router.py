@@ -11,6 +11,7 @@ from app.modules.services.schemas import (
     VenueServiceRead,
 )
 from app.modules.services.services import VenueServiceCatalogService
+from app.modules.venues.enums import VenueTypeSlug
 
 router = APIRouter(prefix="/v1", tags=["services"])
 
@@ -24,9 +25,9 @@ router = APIRouter(prefix="/v1", tags=["services"])
 )
 async def list_catalog(
     session: SessionDep,
-    venue_type_id: Annotated[int | None, Query(ge=1)] = None,
+    venue_type: VenueTypeSlug | None = None,
 ) -> Sequence[ServiceCatalogRead]:
-    return await VenueServiceCatalogService(session).list_catalog(venue_type_id)
+    return await VenueServiceCatalogService(session).list_catalog(venue_type)
 
 
 @router.post(

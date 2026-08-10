@@ -1,6 +1,6 @@
 """Row builders for the repository tests.
 
-Reference data (languages, venue types, staff roles) is already in the database —
+Reference data (languages, staff roles, permissions) is already in the database —
 the seed revision put it there — so these only build the per-test rows on top.
 
 Every factory flushes but never commits: the caller's transaction decides.
@@ -15,7 +15,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User, UserRole, UserStatus
-from app.modules.catalog.models import VenueType
 from app.modules.geo.models import District, Region
 from app.modules.localization.models import Language
 from app.modules.menu.models import (
@@ -31,6 +30,7 @@ from app.modules.staff.models import (
     VenueStaff,
 )
 from app.modules.venue_groups.models import VenueGroup, VenueGroupStatus
+from app.modules.venues.enums import VenueTypeSlug
 from app.modules.venues.models import (
     Venue,
     VenueStatus,
@@ -45,11 +45,6 @@ def unique_suffix() -> str:
 
 async def get_language(session: AsyncSession, code: str = "uz") -> Language:
     result = await session.execute(select(Language).where(Language.code == code))
-    return result.scalar_one()
-
-
-async def get_venue_type(session: AsyncSession, slug: str = "restoran") -> VenueType:
-    result = await session.execute(select(VenueType).where(VenueType.slug == slug))
     return result.scalar_one()
 
 
@@ -89,12 +84,15 @@ async def make_user(session: AsyncSession, role: str = UserRole.CUSTOMER) -> Use
     return user
 
 
-async def make_venue_group(session: AsyncSession, owner: User | None = None) -> VenueGroup:
+async def make_venue_group(
+    session: AsyncSession,
+    owner: User | None = None,
+    venue_type: VenueTypeSlug = VenueTypeSlug.RESTORAN,
+) -> VenueGroup:
     owner = owner or await make_user(session, role=UserRole.VENUE_OWNER)
-    venue_type = await get_venue_type(session)
     group = VenueGroup(
         owner_id=owner.id,
-        primary_venue_type_id=venue_type.id,
+        primary_venue_type=venue_type,
         name=f"Tarmoq {unique_suffix()}",
         default_currency="UZS",
         status=VenueGroupStatus.ACTIVE,
@@ -112,6 +110,7 @@ async def make_venue(
     latitude: float = 41.311081,
     longitude: float = 69.240562,
     status: str = VenueStatus.ACTIVE,
+    venue_type: VenueTypeSlug = VenueTypeSlug.RESTORAN,
 ) -> Venue:
     """A venue at a real Tashkent coordinate, with an active status by default.
 
@@ -125,6 +124,7 @@ async def make_venue(
         venue_group_id=group.id,
         owner_id=group.owner_id,
         district_id=district.id,
+        venue_type=venue_type,
         street="Amir Temur",
         house_number="1",
         latitude=Decimal(str(latitude)),

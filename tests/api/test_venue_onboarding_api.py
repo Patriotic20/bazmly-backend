@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.staff.models import VenueStaff
 from app.modules.venue_groups.models import VenueGroup
+from app.modules.venues.enums import VenueTypeSlug
 from app.modules.venues.models import VenueZone
 from tests.api.conftest import auth_header
 from tests.repositories import factories
@@ -21,10 +22,9 @@ from tests.repositories import factories
 
 async def group_payload(session: AsyncSession) -> dict[str, Any]:
     district = await factories.make_district(session)
-    venue_type = await factories.get_venue_type(session)
     return {
         "group": {
-            "primary_venue_type_id": venue_type.id,
+            "primary_venue_type": VenueTypeSlug.TOYXONA.value,
             "name": "Tinchlik Plaza",
             "default_currency": "UZS",
         },
@@ -36,7 +36,7 @@ async def group_payload(session: AsyncSession) -> dict[str, Any]:
             "longitude": "69.240562",
             "phone": "+998901234567",
             "name": "Chilonzor",
-            "venue_type_ids": [venue_type.id],
+            "venue_type": VenueTypeSlug.TOYXONA.value,
         },
     }
 

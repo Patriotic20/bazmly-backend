@@ -5,7 +5,6 @@ from app.modules.venues.models.venue_photo import VenuePhoto
 from app.modules.venues.models.venue_special_day import VenueSpecialDay
 from app.modules.venues.models.venue_table import VenueTable
 from app.modules.venues.models.venue_table_qr import VenueTableQr
-from app.modules.venues.models.venue_venue_type import VenueVenueType
 from app.modules.venues.models.venue_working_hours import VenueWorkingHours
 from app.modules.venues.models.venue_zone import VenueZone
 
@@ -18,7 +17,6 @@ __all__ = [
     "VenueStatus",
     "VenueTable",
     "VenueTableQr",
-    "VenueVenueType",
     "VenueWorkingHours",
     "VenueZone",
 ]

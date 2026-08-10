@@ -37,6 +37,11 @@ class Venue(IdIntPk, TimestampMixin, Base):
     as being shut for the night. Open-right-now is computed from
     `venue_working_hours` plus the clock and is never stored.
 
+    `venue_type` is one value per branch, held here rather than in a
+    `venue_venue_types` join against a `venue_types` lookup table. Two values that
+    never change do not need two tables, and a branch that is both a restaurant
+    and a wedding hall was a shape nothing in the product ever read.
+
     No `logo_url` here: the logo belongs to the group.
     """
 
@@ -54,6 +59,13 @@ class Venue(IdIntPk, TimestampMixin, Base):
             "status IN ('draft', 'pending', 'active', 'blocked', 'closed')",
             name="ck_venues_status",
         ),
+        # The values are spelled out rather than derived from `VenueTypeSlug`:
+        # `app.modules.venues.enums` imports this module, so importing it back
+        # here would be circular. The enum guards the Pydantic layer instead.
+        CheckConstraint(
+            "venue_type IN ('restoran', 'toyxona')",
+            name="ck_venues_venue_type",
+        ),
     )
 
     venue_group_id: Mapped[int] = mapped_column(ForeignKey("venue_groups.id"), nullable=False)
@@ -62,6 +74,7 @@ class Venue(IdIntPk, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     district_id: Mapped[int] = mapped_column(ForeignKey("districts.id"), nullable=False)
+    venue_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     street: Mapped[str] = mapped_column(String(255), nullable=False)
     house_number: Mapped[str] = mapped_column(String(50), nullable=False)
     latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
