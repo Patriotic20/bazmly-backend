@@ -35,3 +35,17 @@ class RegionRepository:
             select(District).where(District.region_id == region_id).order_by(District.name)
         )
         return RegionWithDistricts(region=region, districts=result.scalars().all())
+
+    async def get_by_code(self, code: str) -> Region | None:
+        result = await self.session.execute(select(Region).where(Region.code == code))
+        return result.scalar_one_or_none()
+
+    async def create(self, name: str, code: str) -> Region:
+        region = Region(name=name, code=code)
+        self.session.add(region)
+        await self.session.flush()
+        return region
+
+    async def delete(self, region: Region) -> None:
+        await self.session.delete(region)
+        await self.session.flush()

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.geo.models import District
@@ -19,3 +19,9 @@ class DistrictRepository:
             select(District).where(District.region_id == region_id).order_by(District.name)
         )
         return result.scalars().all()
+
+    async def count_for_region(self, region_id: int) -> int:
+        result = await self.session.execute(
+            select(func.count()).select_from(District).where(District.region_id == region_id)
+        )
+        return result.scalar_one()

@@ -11,4 +11,4 @@ class Region(IdIntPk, TimestampMixin, Base):
     __tablename__ = "regions"
 
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    code: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
