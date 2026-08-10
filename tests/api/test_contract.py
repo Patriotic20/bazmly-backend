@@ -134,3 +134,31 @@ async def test_customer_and_staff_trees_are_separate(api_client: AsyncClient) ->
     assert "/api/v1/venue/venues" in paths
     assert "/api/v1/bookings" in paths
     assert "/api/v1/venue/bookings" in paths
+
+
+async def test_openapi_declares_a_bearer_security_scheme(client: AsyncClient) -> None:
+    """The generated mobile client reads auth off `securitySchemes`.
+
+    A raw `authorization` header param would instead surface as an optional string
+    field, which reads as "this endpoint is public" and silently produces an SDK
+    that never sends the token.
+    """
+    schema = (await client.get("/api/openapi.json")).json()
+
+    schemes = schema["components"]["securitySchemes"]
+    assert any(
+        value.get("type") == "http" and value.get("scheme") == "bearer"
+        for value in schemes.values()
+    ), f"no HTTP bearer scheme in {sorted(schemes)}"
+
+
+async def test_protected_route_references_the_scheme_not_a_header(client: AsyncClient) -> None:
+    """`GET /api/v1/venue/groups/me` is owner-only and must document itself as such."""
+    schema = (await client.get("/api/openapi.json")).json()
+    operation = schema["paths"]["/api/v1/venue/groups/me"]["get"]
+
+    assert operation.get("security"), "protected route declares no security requirement"
+    parameter_names = {p["name"] for p in operation.get("parameters", [])}
+    assert "authorization" not in parameter_names, (
+        "auth is still a plain header parameter; Swagger will render a text box"
+    )

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Header, Path, Query, Request, params
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth_mode import AuthConfigurationError, auth_disabled, dev_user_id
@@ -33,8 +34,6 @@ from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE
 from app.modules.localization.services import LanguageService
 from app.modules.staff.services import StaffService
 
-BEARER_PREFIX = "bearer "
-
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 100
 
@@ -52,15 +51,28 @@ async def get_session() -> AsyncGenerator[AsyncSession]:
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-def _bearer_token(authorization: str | None) -> str | None:
-    if not authorization or not authorization.lower().startswith(BEARER_PREFIX):
-        return None
-    return authorization[len(BEARER_PREFIX) :].strip() or None
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    description="Kirish tokeni: `Authorization: Bearer <token>`",
+)
+
+BearerCredentials = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
+"""The access token, or `None` when absent or not a bearer credential.
+
+`auto_error=False` is load-bearing twice over. It keeps `get_current_user_optional`
+able to return `None` instead of failing, and it keeps every rejection a
+`DomainError` raised by us — `auto_error=True` would raise `HTTPException` from
+inside the security scheme, which is exactly the HTTP vocabulary this module
+keeps out of the domain.
+
+FastAPI also returns `None` when the scheme is not `bearer`, which is the same
+rule the hand-rolled prefix check enforced.
+"""
 
 
 async def get_current_user(
     session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
+    credentials: BearerCredentials = None,
 ) -> UserRead:
     """Decode the access token and load the user.
 
@@ -73,7 +85,7 @@ async def get_current_user(
     if auth_disabled():
         return await _dev_user(session)
 
-    token = _bearer_token(authorization)
+    token = credentials.credentials if credentials else None
     if token is None:
         raise AuthenticationRequiredError()
 
@@ -113,7 +125,7 @@ CurrentUser = Annotated[UserRead, Depends(get_current_user)]
 
 async def get_current_user_pending_ok(
     session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
+    credentials: BearerCredentials = None,
 ) -> UserRead:
     """Like `get_current_user`, but accepts `pending_profile`.
 
@@ -127,7 +139,7 @@ async def get_current_user_pending_ok(
     if auth_disabled():
         return await _dev_user(session)
 
-    token = _bearer_token(authorization)
+    token = credentials.credentials if credentials else None
     if token is None:
         raise AuthenticationRequiredError()
 
@@ -147,7 +159,7 @@ PendingUser = Annotated[UserRead, Depends(get_current_user_pending_ok)]
 
 async def get_current_user_optional(
     session: SessionDep,
-    authorization: Annotated[str | None, Header()] = None,
+    credentials: BearerCredentials = None,
 ) -> UserRead | None:
     """For endpoints that personalise but do not require auth.
 
@@ -156,10 +168,10 @@ async def get_current_user_optional(
     """
     if auth_disabled():
         return await _dev_user(session)
-    if _bearer_token(authorization) is None:
+    if credentials is None:
         return None
     try:
-        return await get_current_user(session, authorization)
+        return await get_current_user(session, credentials)
     except AuthenticationRequiredError, PermissionDeniedError:
         return None
 
