@@ -236,7 +236,9 @@ class BookingRepository:
     async def set_status(
         self, booking_id: int, status: str, now: datetime, reason: str | None = None
     ) -> Booking | None:
-        values: dict[str, object] = {"status": status}
+        # `updated_at` is written by hand: `onupdate` fires on ORM updates only,
+        # and this is a raw UPDATE. See CONVENTIONS.md section 11.
+        values: dict[str, object] = {"status": status, "updated_at": now}
         if status == BookingStatus.CONFIRMED:
             values["confirmed_at"] = now
         elif status == BookingStatus.CANCELLED:

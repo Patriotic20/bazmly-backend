@@ -15,6 +15,7 @@ from app.core.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     TableAlreadyBookedError,
+    ValidationFailedError,
     VenueClosedError,
 )
 from app.core.integrity import translate_integrity_error
@@ -293,6 +294,39 @@ class BookingService:
         await get_availability_cache().invalidate(venue_availability_prefix(booking.venue_id))
         return BookingRead.model_validate(updated)
 
+    async def confirm(self, staff_user_id: int, venue_id: int, booking_id: int) -> BookingRead:
+        """The branch accepting a request.
+
+        Nothing else in the system produces a `confirmed` booking, and
+        `check_in_by_qr` refuses anything that is not confirmed — so until this
+        runs, a guest's ticket can never be scanned.
+        """
+        return await self._decide(
+            staff_user_id,
+            venue_id,
+            booking_id,
+            BookingStatus.CONFIRMED,
+            comment="Confirmed by venue",
+        )
+
+    async def reject(
+        self, staff_user_id: int, venue_id: int, booking_id: int, payload: BookingCancel
+    ) -> BookingRead:
+        """The branch refusing a request.
+
+        The booking lands in `cancelled`, the same state a guest's own
+        cancellation produces — one terminal state rather than two, so every
+        read already handles it. Who ended it is in the status history.
+        """
+        return await self._decide(
+            staff_user_id,
+            venue_id,
+            booking_id,
+            BookingStatus.CANCELLED,
+            comment=payload.reason or "Rejected by venue",
+            reason=payload.reason,
+        )
+
     async def check_in_by_qr(self, staff_user_id: int, venue_id: int, qr_token: str) -> BookingRead:
         """Scanned by the venue, from the token the guest shows.
 
@@ -369,6 +403,51 @@ class BookingService:
         local_dt = datetime.combine(booking_date, start_time)
         if not await self.venues.is_open_at(venue_id, local_dt):
             raise VenueClosedError("Muassasa o'sha vaqtda yopiq")
+
+    async def _decide(
+        self,
+        staff_user_id: int,
+        venue_id: int,
+        booking_id: int,
+        status: str,
+        *,
+        comment: str,
+        reason: str | None = None,
+    ) -> BookingRead:
+        """Accept or refuse a pending request, in one place.
+
+        The three refusals are ordered the way `check_in_by_qr` orders its own:
+        the booking must belong to this branch, the caller must work there, and
+        only then does its state matter. Reversing the last two would tell a
+        stranger whether a booking is still open.
+        """
+        now = utcnow_naive()
+        booking = await self.bookings.get_by_id(booking_id)
+        if booking is None or booking.venue_id != venue_id:
+            raise NotFoundError("Bu muassasada bunday bron topilmadi")
+        if not await self._staff_works_at(staff_user_id, venue_id):
+            raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
+        if booking.status != BookingStatus.PENDING:
+            raise ValidationFailedError(
+                "Bu bron allaqachon ko'rib chiqilgan",
+                details={"status": booking.status},
+            )
+
+        updated = await self.bookings.set_status(booking_id, status, now, reason=reason)
+        if updated is None:
+            raise NotFoundError("Bron topilmadi")
+        await self.bookings.record_status_change(
+            booking_id,
+            BookingStatus.PENDING,
+            status,
+            changed_by_user_id=staff_user_id,
+            comment=comment,
+        )
+        await self.session.commit()
+        # A refusal frees the table or the day it was holding; a confirmation
+        # does not, but the cached slot list keys on neither status.
+        await get_availability_cache().invalidate(venue_availability_prefix(booking.venue_id))
+        return BookingRead.model_validate(updated)
 
     async def _staff_works_at(self, user_id: int, venue_id: int) -> bool:
         rows = await self.staff.list_for_user(user_id)

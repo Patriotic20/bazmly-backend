@@ -12,6 +12,7 @@ from app.modules.bookings.api.dependencies import AvailabilityServiceDep, Bookin
 from app.modules.bookings.enums import BookingStatus
 from app.modules.bookings.schemas import (
     BlockedDatesRead,
+    BookingCancel,
     BookingRead,
     CheckInRequest,
     SeatedSummary,
@@ -35,6 +36,45 @@ async def list_day(
     statuses: Annotated[list[BookingStatus] | None, Query()] = None,
 ) -> Sequence[BookingRead]:
     return await service.venue_day(venue_id, day, statuses)
+
+
+@router.post(
+    "/{booking_id}/confirm",
+    response_model=BookingRead,
+    operation_id="venue_bookings_confirm",
+    summary="Bronni tasdiqlash",
+    description=(
+        "Yangi so'rovni qabul qilish. Faqat `pending` bron o'zgaradi, va faqat "
+        "tasdiqlangan bronning chiptasini skanerlash mumkin."
+    ),
+)
+async def confirm(
+    user: Annotated[UserRead, require_permission("bookings.confirm")],
+    service: BookingServiceDep,
+    booking_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> BookingRead:
+    return await service.confirm(user.id, venue_id, booking_id)
+
+
+@router.post(
+    "/{booking_id}/reject",
+    response_model=BookingRead,
+    operation_id="venue_bookings_reject",
+    summary="Bronni rad etish",
+    description=(
+        "So'rovni rad etish. Bron mijoz o'zi bekor qilgandagi kabi `cancelled` "
+        "holatiga o'tadi; kim rad etgani holat tarixida qoladi."
+    ),
+)
+async def reject(
+    payload: BookingCancel,
+    user: Annotated[UserRead, require_permission("bookings.cancel")],
+    service: BookingServiceDep,
+    booking_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> BookingRead:
+    return await service.reject(user.id, venue_id, booking_id, payload)
 
 
 @router.post(
