@@ -20,14 +20,18 @@ WORKDIR /app
 
 # Dependencies resolve from pyproject.toml + uv.lock in their own cached layer,
 # so editing application code does not invalidate the install.
+#
+# The cache mounts carry an explicit `id`. BuildKit treats it as optional and
+# derives one from the target path, but Railway's builder rejects a mount
+# without it -- so omitting it builds locally and fails there.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 
 COPY alembic.ini ./
 COPY app/ ./app/
 
-RUN --mount=type=cache,target=/root/.cache/uv \
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 RUN groupadd --system --gid 1000 app \
