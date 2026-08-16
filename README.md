@@ -56,28 +56,26 @@ uv run uvicorn app.main:app --reload
 
 ## Deploying to Railway
 
-Built by Nixpacks from [`railway.json`](railway.json); there is no Dockerfile.
-The start command runs `alembic upgrade head` before uvicorn, so a fresh
-database migrates and seeds its reference data on first boot.
+Built from the [`Dockerfile`](Dockerfile), which Railway uses in preference to
+its own builder. The image runs `alembic upgrade head` before uvicorn, so a
+fresh database migrates and seeds its reference data on first boot.
 
-### Why there is a `nixpacks.toml`
+### Why a Dockerfile and not the platform builder
 
-Nixpacks cannot build this project as it stands, on two counts: it has no Python
+Nixpacks cannot build this project, on two independent counts: it has no Python
 3.14, and it pins uv 0.4.30, which predates the `revision = 3` lockfile format
-that uv 0.9 writes. Either one fails the build on its own.
+uv 0.9 writes. Either one fails the build on its own.
 
-Neither can be dodged by downgrading. `app/core/dependencies.py` uses PEP 758
-`except A, B:`, which 3.13 does not parse — so the interpreter version is a hard
-floor, not a preference.
+Neither is avoidable by asking for less. `app/core/dependencies.py` uses PEP 758
+`except A, B:`, which 3.13 does not parse — the interpreter version is a floor,
+not a preference.
 
-[`nixpacks.toml`](nixpacks.toml) therefore replaces the install phase: it fetches
-uv at the version that wrote the lock, and lets uv supply the interpreter. Every
-path in it is absolute and under `/app`, because uv would otherwise put the
-interpreter in `$HOME` and the venv would lose its Python between the build image
-and the runtime one.
+A Dockerfile states both: `python:3.14-slim` for the interpreter and a pinned uv
+for the lockfile. Nothing is inferred, so nothing changes underneath when the
+platform's builder is upgraded.
 
-The sequence was verified in a container with no Python 3.14 at all, which is
-the condition Railway's builder fails on.
+`$PORT` is expanded at run time rather than baked in — Railway assigns the port
+rather than letting the service pick one.
 
 Railway's stock PostgreSQL **does not include PostGIS**. Provision the PostGIS
 template instead, or the very first migration fails and the service never
