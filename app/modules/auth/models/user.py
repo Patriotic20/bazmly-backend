@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, Text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database.base import Base
@@ -39,8 +39,12 @@ class User(IdIntPk, TimestampMixin, Base):
 
     __tablename__ = "users"
     __table_args__ = (
+        # Telegram joins phone and email as a third way to be identifiable. A
+        # Mini App hands over an account id and a name and nothing else — no
+        # phone, no address — so without this the first thing a Telegram sign-in
+        # would meet is a constraint violation.
         CheckConstraint(
-            "phone IS NOT NULL OR email IS NOT NULL",
+            "phone IS NOT NULL OR email IS NOT NULL OR telegram_id IS NOT NULL",
             name="ck_users_phone_or_email",
         ),
         CheckConstraint(
@@ -58,6 +62,9 @@ class User(IdIntPk, TimestampMixin, Base):
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    # BigInteger, not Integer: Telegram account ids passed 2^31 in 2021, so the
+    # narrower column would start rejecting new users rather than old ones.
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     language_id: Mapped[int] = mapped_column(ForeignKey("languages.id"), nullable=False)
     district_id: Mapped[int | None] = mapped_column(ForeignKey("districts.id"), nullable=True)

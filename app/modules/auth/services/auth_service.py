@@ -1,9 +1,10 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database.mixins import utcnow_naive
 from app.core.exceptions import (
     NotFoundError,
@@ -30,8 +31,10 @@ from app.modules.auth.schemas import (
     PhoneLogin,
     PhoneRegister,
     StaffLogin,
+    TelegramLogin,
     TokenPair,
 )
+from app.modules.auth.telegram import TelegramUser, parse_init_data
 from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE, LanguageRepository
 
 ACCESS_TOKEN_TTL = timedelta(minutes=30)
@@ -107,6 +110,64 @@ class AuthService:
         pair = await self._issue_tokens_in_transaction(user, now)
         await self.session.commit()
         return pair
+
+    async def telegram_login(self, payload: TelegramLogin) -> TokenPair:
+        """Sign in — or sign up — the Telegram account that opened the Mini App.
+
+        There is no password step and no registration screen, because Telegram
+        already proved who this is. `parse_init_data` is the whole trust
+        boundary: past it, the id is as good as a verified phone number.
+
+        First arrival creates the account. That is the same trade `register`
+        makes — the name comes with the request, so the profile is complete —
+        except the account has no phone number. A booking asks for a contact
+        number in its own payload, so this does not block one.
+        """
+        now = utcnow_naive()
+        telegram_user = parse_init_data(
+            payload.init_data,
+            settings.telegram.bot_token,
+            now.replace(tzinfo=UTC),
+            settings.telegram.init_data_max_age_seconds,
+        )
+
+        user = await self.users.get_by_telegram_id(telegram_user.id)
+        if user is None:
+            user = await self._create_from_telegram(telegram_user)
+        else:
+            self._require_usable(user)
+
+        await self.users.touch_last_login(user.id, now)
+        pair = await self._issue_tokens_in_transaction(user, now)
+        await self.session.commit()
+        return pair
+
+    async def _create_from_telegram(self, telegram_user: TelegramUser) -> User:
+        """Telegram guarantees an id and a first name, and promises nothing else."""
+        language = None
+        if telegram_user.language_code:
+            # `ru-RU` and `ru` both mean the same row; an unknown code is not an
+            # error, it just means the interface stays in Uzbek.
+            language = await self.languages.get_by_code(telegram_user.language_code[:2].lower())
+        language_id = language.id if language else await self._default_language_id()
+
+        try:
+            return await self.users.create(
+                User(
+                    first_name=telegram_user.first_name,
+                    last_name=telegram_user.last_name or "",
+                    telegram_id=telegram_user.id,
+                    avatar_url=telegram_user.photo_url,
+                    language_id=language_id,
+                    role=UserRole.CUSTOMER,
+                    status=UserStatus.ACTIVE,
+                    must_change_password=False,
+                )
+            )
+        except IntegrityError as error:
+            # Two taps on a cold start race here; the unique index on
+            # `telegram_id` is what actually decides which one wins.
+            raise translate_integrity_error(error) from error
 
     async def login(self, payload: PhoneLogin) -> TokenPair:
         """Phone, plus a password only if the account has one."""

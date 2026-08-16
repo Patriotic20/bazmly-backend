@@ -39,6 +39,12 @@ class UserRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_telegram_id(self, telegram_id: int) -> User | None:
+        result = await self.session.execute(
+            select(User).where(User.telegram_id == telegram_id, User.deleted_at.is_(None))
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
         result = await self.session.execute(
             select(User).where(User.email == email, User.deleted_at.is_(None))

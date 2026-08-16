@@ -78,6 +78,27 @@ class SecurityConfig(BaseModel):
     dev_user_id: int | None = None
 
 
+class TelegramConfig(BaseModel):
+    """The bot the Mini App runs inside.
+
+    `bot_token` is the only thing that can verify an `initData` payload: Telegram
+    signs it with a key derived from the token, so without it the app cannot tell
+    a real Telegram user from a forged query string. Empty means the Telegram
+    sign-in route is switched off and answers 422 rather than trusting anything.
+
+    `init_data_max_age_seconds` bounds a replay. The signature stays valid
+    forever, so `auth_date` is what stops a captured payload being reused
+    tomorrow.
+    """
+
+    bot_token: str = ""
+    init_data_max_age_seconds: int = 86_400
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.bot_token)
+
+
 class AppEnv(StrEnum):
     LOCAL = "local"
     STAGING = "staging"
@@ -114,6 +135,7 @@ class Settings(BaseSettings):
     cors: CorsConfig = CorsConfig()
     logging: LoggingConfig = LoggingConfig()
     security: SecurityConfig = SecurityConfig()
+    telegram: TelegramConfig = TelegramConfig()
     redis: RedisConfig = RedisConfig()
 
 

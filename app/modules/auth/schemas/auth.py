@@ -62,6 +62,16 @@ class StaffLogin(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class TelegramLogin(BaseModel):
+    """Mini App ochilganda Telegram bergan `initData` satri, o'zgartirilmagan holda.
+
+    Bu satr imzolangan, shuning uchun uni qismlarga ajratib yuborish mumkin emas:
+    imzo aynan shu ko'rinish uchun hisoblangan.
+    """
+
+    init_data: str = Field(min_length=1, max_length=4096)
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

@@ -11,6 +11,7 @@ from app.modules.auth.schemas import (
     PhoneRegister,
     RefreshRequest,
     StaffLogin,
+    TelegramLogin,
     TokenPair,
     UserProfileUpdate,
     UserRead,
@@ -57,6 +58,21 @@ async def register(payload: PhoneRegister, service: AuthServiceDep) -> TokenPair
 )
 async def login(payload: PhoneLogin, service: AuthServiceDep) -> TokenPair:
     return with_access_token(await service.login(payload))
+
+
+@router.post(
+    "/telegram",
+    response_model=TokenPair,
+    operation_id="auth_telegram_login",
+    summary="Telegram orqali kirish",
+    description=(
+        "Mini App uchun. Telegram bergan `initData` satri o'zgartirilmagan holda "
+        "yuboriladi; imzo tekshirilgach, akkaunt topiladi yoki yaratiladi. "
+        "Parol ham, tasdiqlash kodi ham talab qilinmaydi."
+    ),
+)
+async def telegram_login(payload: TelegramLogin, service: AuthServiceDep) -> TokenPair:
+    return with_access_token(await service.telegram_login(payload))
 
 
 @router.post(

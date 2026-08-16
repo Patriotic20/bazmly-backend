@@ -6,6 +6,7 @@ from app.modules.auth.schemas.auth import (
     PhoneRegister,
     RefreshRequest,
     StaffLogin,
+    TelegramLogin,
     TokenPair,
 )
 from app.modules.auth.schemas.device import DeviceCreate, DeviceRead
@@ -36,6 +37,7 @@ __all__ = [
     "PhoneRegister",
     "RefreshRequest",
     "StaffLogin",
+    "TelegramLogin",
     "TokenPair",
     "UserCreate",
     "UserListItem",
