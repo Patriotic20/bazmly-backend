@@ -74,6 +74,7 @@ app = FastAPI(
         {"name": "reviews", "description": "Sharhlar va reyting."},
         {"name": "engagement", "description": "Sevimlilar, suhbatlar va Xabarlar."},
         {"name": "venue:analytics", "description": "Boshqaruv paneli va hisobotlar."},
+        {"name": "telegram", "description": "Telegram bot webhooki. Brauzer uchun emas."},
     ],
 )
 

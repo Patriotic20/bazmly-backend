@@ -24,6 +24,7 @@ from app.modules.orders.api import router as orders_router
 from app.modules.reviews.api import router as reviews_router
 from app.modules.services.api import router as services_router
 from app.modules.staff.api import router as staff_router
+from app.modules.telegram.api import router as telegram_router
 from app.modules.venue_groups.api import router as venue_groups_router
 from app.modules.venues.api import router as venues_router
 
@@ -75,5 +76,6 @@ for module_router in (
     reviews_router,
     engagement_router,
     analytics_router,
+    telegram_router,
 ):
     main_router.include_router(module_router)

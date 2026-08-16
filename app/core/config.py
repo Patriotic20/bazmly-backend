@@ -93,6 +93,13 @@ class TelegramConfig(BaseModel):
 
     bot_token: str = ""
     init_data_max_age_seconds: int = 86_400
+    # Shared with Telegram when the webhook is registered, and sent back on every
+    # delivery. The webhook URL is guessable; without this anyone could post a
+    # forged update and make the bot say anything to any chat.
+    webhook_secret: str = ""
+    # Where the bot's button sends people. A `web_app` button, so the Mini App
+    # opens inside Telegram with initData rather than in a browser without it.
+    app_url: str = ""
 
     @property
     def enabled(self) -> bool:
