@@ -1,0 +1,12 @@
+# The frontend arrived with CRLF endings on every tracked file, which made its
+# whole history unreadable in a diff. Normalize to LF in the repository and on
+# checkout, so a Windows editor cannot rewrite 9,800 lines by touching one.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

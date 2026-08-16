@@ -1,15 +1,13 @@
-# baz
+# bazmly — backend
 
 A FastAPI backend: async SQLAlchemy 2.x, Alembic, PostgreSQL, managed with uv.
-One half of the bazmly repository — the other is `../frontend`, which consumes
-this API over HTTP and shares no code with it. See [../README.md](../README.md)
-for how the two connect.
+The client that consumes it lives in
+[bazmly-frontend](https://github.com/Patriotic20/bazmly-frontend); the two share
+no code and meet only over HTTP, with the OpenAPI schema at
+`/api/openapi.json` as the contract.
 
 Read [CONVENTIONS.md](CONVENTIONS.md) before writing code — the module layout and
 the one-model-per-file / no-base-repository rules are not optional.
-
-**Every command below runs from this directory**, not from the repository root.
-`alembic.ini` resolves `script_location` against the working directory.
 
 ## Stack
 
@@ -27,21 +25,58 @@ the one-model-per-file / no-base-repository rules are not optional.
 | Types         | mypy `--strict`                               |
 | Tests         | pytest + pytest-asyncio                       |
 
-## Quick start — Docker
+## Quick start
 
-`docker-compose.yml` lives at the repository root and brings up the whole stack,
-backend included. See [../README.md](../README.md).
+You need a PostgreSQL with **PostGIS** — plain PostgreSQL will not do. The first
+migration creates three extensions (`postgis`, `btree_gist`, `pg_trgm`) and the
+schema depends on all of them: `venues.location` is a `geography(Point,4326)`,
+the no-double-booking rule is a GiST exclusion constraint, and venue search is a
+trigram index.
 
-## Quick start — local
+The quickest way to one is a container:
 
 ```sh
-cp .env.template .env                  # then edit if you like
+docker run -d --name bazmly-postgres \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=baz \
+  -p 5432:5432 postgis/postgis:17-3.5-alpine
+```
+
+Then:
+
+```sh
+cp .env.template .env                  # point DATABASE__URL at it
 uv sync
-docker compose -f ../docker-compose.yml up -d postgres redis
 uv run alembic upgrade head
 uv run python -m scripts.seed_demo     # optional: demo venues, menus, bookings
 uv run uvicorn app.main:app --reload
 ```
+
+**Every command runs from the repository root** — `alembic.ini` resolves
+`script_location` against the working directory.
+
+## Deploying to Railway
+
+Built by Nixpacks from [`railway.json`](railway.json); there is no Dockerfile.
+The start command runs `alembic upgrade head` before uvicorn, so a fresh
+database migrates and seeds its reference data on first boot.
+
+Railway's stock PostgreSQL **does not include PostGIS**. Provision the PostGIS
+template instead, or the very first migration fails and the service never
+starts.
+
+Variables to set on the service:
+
+| Variable | Value |
+| --- | --- |
+| `APP_CONFIG__DATABASE__URL` | `${{Postgres.DATABASE_URL}}`, with `postgresql://` rewritten to `postgresql+asyncpg://` |
+| `APP_CONFIG__SECURITY__SECRET_KEY` | a real secret — the default is refused outside `local` |
+| `APP_CONFIG__ENV` | `production` |
+| `APP_CONFIG__CORS__ORIGINS` | `["https://<frontend-domain>"]`, as JSON |
+| `APP_CONFIG__TELEGRAM__BOT_TOKEN` | the BotFather token, if Telegram sign-in is wanted |
+| `APP_CONFIG__REDIS__URL` | `${{Redis.REDIS_URL}}`, if a Redis service exists |
+
+The asyncpg prefix matters: Railway hands out a `postgresql://` URL and the
+driver here is async, so the scheme has to say so.
 
 ## Seed data
 
@@ -107,9 +142,8 @@ git-ignored and overrides it. Both are loaded, in that order, and both are
 addressed by absolute path — the settings a process gets do not depend on the
 directory it was launched from.
 
-Only `APP_CONFIG__*` belongs here. The host ports docker compose publishes live
-in the repository root's [`.env`](../.env.template), because compose substitutes
-`${VAR}` from the file next to `docker-compose.yml` and from nowhere else.
+In a deployment there is no `.env` at all: the same names are set as environment
+variables, which take precedence over both files.
 
 ## Layout
 
