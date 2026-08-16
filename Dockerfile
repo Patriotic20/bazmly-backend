@@ -18,21 +18,21 @@ COPY --from=uv /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Dependencies resolve from pyproject.toml + uv.lock in their own cached layer,
-# so editing application code does not invalidate the install.
+# Dependencies resolve from pyproject.toml + uv.lock before the application is
+# copied in, so editing code does not reinstall them: the layer above is reused.
+# That is where nearly all of the rebuild saving comes from.
 #
-# The cache mounts carry an explicit `id`. BuildKit treats it as optional and
-# derives one from the target path, but Railway's builder rejects a mount
-# without it -- so omitting it builds locally and fails there.
+# There is deliberately no BuildKit cache mount. Railway's builder demands an
+# `id` on one, and then demands that the id carry a prefix naming the service --
+# which would tie this file to one service in one account and break the moment
+# the service is recreated. A download cache is not worth that.
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --no-dev
+RUN uv sync --locked --no-install-project --no-dev
 
 COPY alembic.ini ./
 COPY app/ ./app/
 
-RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev
+RUN uv sync --locked --no-dev
 
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --no-create-home app \
