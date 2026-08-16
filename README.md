@@ -56,9 +56,15 @@ uv run uvicorn app.main:app --reload
 
 ## Deploying to Railway
 
-Built from the [`Dockerfile`](Dockerfile), which Railway uses in preference to
-its own builder. The image runs `alembic upgrade head` before uvicorn, so a
-fresh database migrates and seeds its reference data on first boot.
+Built from the [`Dockerfile`](Dockerfile), which Railway finds and uses in
+preference to its own builder — there is no build config to keep in step. The
+image runs `alembic upgrade head` before uvicorn, so a fresh database migrates
+and seeds its reference data on first boot.
+
+Nothing declares a health check, so set one in the service settings if you want
+a bad deploy to be caught rather than promoted: `/api/health` answers 200 with
+`{"status": "degraded", "database": "down"}` when the process is up but Postgres
+is not, so it distinguishes the two failures.
 
 ### Why a Dockerfile and not the platform builder
 
