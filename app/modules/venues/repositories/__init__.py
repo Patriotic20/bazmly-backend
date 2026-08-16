@@ -9,7 +9,7 @@ from app.modules.venues.repositories.venue_repository import (
     VenueRepository,
     VenueSearchRow,
     VenueStatusCounts,
-    point_ewkt,
+    venue_distance_m,
 )
 from app.modules.venues.repositories.venue_table_qr_repository import (
     TableQrContext,
@@ -37,5 +37,5 @@ __all__ = [
     "VenueTableRepository",
     "VenueWorkingHoursRepository",
     "VenueZoneRepository",
-    "point_ewkt",
+    "venue_distance_m",
 ]

@@ -18,7 +18,7 @@ the one-model-per-file / no-base-repository rules are not optional.
 | ORM           | SQLAlchemy 2.x async, `Mapped`/`mapped_column` |
 | Migrations    | Alembic (async `env.py`)                      |
 | Settings      | Pydantic v2 + pydantic-settings               |
-| Database      | PostgreSQL 17 + PostGIS + asyncpg             |
+| Database      | PostgreSQL 17 + asyncpg                       |
 | Cache / locks | Redis                                         |
 | Packaging     | uv                                            |
 | Lint / format | ruff                                          |
@@ -27,18 +27,14 @@ the one-model-per-file / no-base-repository rules are not optional.
 
 ## Quick start
 
-You need a PostgreSQL with **PostGIS** — plain PostgreSQL will not do. The first
-migration creates three extensions (`postgis`, `btree_gist`, `pg_trgm`) and the
-schema depends on all of them: `venues.location` is a `geography(Point,4326)`,
-the no-double-booking rule is a GiST exclusion constraint, and venue search is a
-trigram index.
-
-The quickest way to one is a container:
+Any stock PostgreSQL 17 will do. The first migration creates `btree_gist` and
+`pg_trgm`, both of which ship with PostgreSQL itself — the no-double-booking rule
+is a GiST exclusion constraint, and venue search is a trigram index.
 
 ```sh
 docker run -d --name bazmly-postgres \
   -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=baz \
-  -p 5432:5432 postgis/postgis:17-3.5-alpine
+  -p 5432:5432 postgres:17-alpine
 ```
 
 Then:
@@ -56,36 +52,9 @@ uv run uvicorn app.main:app --reload
 
 ## Deploying to Railway
 
-Built from the [`Dockerfile`](Dockerfile), which Railway finds and uses in
-preference to its own builder — there is no build config to keep in step. The
-image runs `alembic upgrade head` before uvicorn, so a fresh database migrates
-and seeds its reference data on first boot.
-
-Nothing declares a health check, so set one in the service settings if you want
-a bad deploy to be caught rather than promoted: `/api/health` answers 200 with
-`{"status": "degraded", "database": "down"}` when the process is up but Postgres
-is not, so it distinguishes the two failures.
-
-### Why a Dockerfile and not the platform builder
-
-Nixpacks cannot build this project, on two independent counts: it has no Python
-3.14, and it pins uv 0.4.30, which predates the `revision = 3` lockfile format
-uv 0.9 writes. Either one fails the build on its own.
-
-Neither is avoidable by asking for less. `app/core/dependencies.py` uses PEP 758
-`except A, B:`, which 3.13 does not parse — the interpreter version is a floor,
-not a preference.
-
-A Dockerfile states both: `python:3.14-slim` for the interpreter and a pinned uv
-for the lockfile. Nothing is inferred, so nothing changes underneath when the
-platform's builder is upgraded.
-
-`$PORT` is expanded at run time rather than baked in — Railway assigns the port
-rather than letting the service pick one.
-
-Railway's stock PostgreSQL **does not include PostGIS**. Provision the PostGIS
-template instead, or the very first migration fails and the service never
-starts.
+Built by Nixpacks from [`railway.json`](railway.json); there is no Dockerfile.
+The start command runs `alembic upgrade head` before uvicorn, so a fresh
+database migrates and seeds its reference data on first boot.
 
 Variables to set on the service:
 

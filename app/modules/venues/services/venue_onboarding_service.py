@@ -26,7 +26,6 @@ from app.modules.venues.repositories import (
     VenueRepository,
     VenueWorkingHoursRepository,
     VenueZoneRepository,
-    point_ewkt,
 )
 from app.modules.venues.schemas import (
     VenueCreate,
@@ -64,9 +63,9 @@ class VenueOnboardingService:
     already there.
 
     Both creation paths live here rather than in `VenueService` so that the rules
-    a new branch depends on — `location` derived from the coordinates, the owner
-    inherited from the chain, the two default zones — exist in exactly one place.
-    A branch created without them is not a lesser branch; it is a broken one.
+    a new branch depends on — the owner inherited from the chain, the two default
+    zones — exist in exactly one place. A branch created without them is not a
+    lesser branch; it is a broken one.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -190,11 +189,12 @@ class VenueOnboardingService:
             )
 
     def _build_branch(self, payload: VenueCreate, owner_id: int) -> Venue:
-        """`location` is derived here and never accepted from the client.
+        """The coordinates are the whole of a branch's position.
 
-        It is NOT NULL with no default, so a branch inserted without it fails; and
-        a client-supplied point that disagreed with `latitude`/`longitude` would
-        put the map pin and the distance sort in different cities.
+        There used to be a PostGIS point derived here as well, which could
+        disagree with `latitude`/`longitude` and put the map pin and the distance
+        sort in different cities. Distance is now computed from these two columns,
+        so there is nothing left to disagree with.
         """
         return Venue(
             owner_id=owner_id,
@@ -204,7 +204,6 @@ class VenueOnboardingService:
             house_number=payload.house_number,
             latitude=payload.latitude,
             longitude=payload.longitude,
-            location=point_ewkt(payload.latitude, payload.longitude),
             phone=payload.phone,
             name=payload.name,
             description=payload.description,

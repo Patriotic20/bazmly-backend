@@ -4,11 +4,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from geoalchemy2.functions import ST_Distance, ST_DWithin, ST_GeogFromText
 from sqlalchemy import (
     ColumnElement,
+    Float,
     Select,
     case,
+    cast,
     func,
     literal,
     select,
@@ -38,14 +39,35 @@ SORT_RATING = "rating"
 SORT_PRICE = "price"
 
 
-def point_ewkt(latitude: Decimal | float, longitude: Decimal | float) -> str:
-    """`venues.location` in the one format PostGIS reads back.
+# Mean Earth radius. Distances here are "how far is this restaurant", where a
+# sphere is accurate to about 0.3% — far below the error already in a venue's
+# hand-entered coordinates.
+EARTH_RADIUS_M = 6_371_000.0
 
-    Longitude first. Reversing the pair is silent — it produces a valid point in
-    the wrong hemisphere, and the only symptom is a distance sort that ranks
-    Tashkent behind the Indian Ocean.
+
+def venue_distance_m(latitude: float, longitude: float) -> ColumnElement[float]:
+    """Great-circle distance from a point to `venues`, in metres.
+
+    The haversine formula rather than the spherical law of cosines: the latter
+    is shorter but loses precision at small angles, and "which of these two
+    restaurants on the same street is nearer" is exactly the small-angle case.
+
+    This replaced `ST_Distance` over a PostGIS `geography` column. It costs the
+    spatial index -- a radius filter is now a scan -- which is the trade that
+    lets the schema run on any stock PostgreSQL.
     """
-    return f"SRID=4326;POINT({longitude} {latitude})"
+    lat1 = func.radians(literal(float(latitude)))
+    lon1 = func.radians(literal(float(longitude)))
+    lat2 = func.radians(cast(Venue.latitude, Float))
+    lon2 = func.radians(cast(Venue.longitude, Float))
+
+    sin_half_dlat = func.sin((lat2 - lat1) / 2)
+    sin_half_dlon = func.sin((lon2 - lon1) / 2)
+    chord = (
+        sin_half_dlat * sin_half_dlat
+        + func.cos(lat1) * func.cos(lat2) * sin_half_dlon * sin_half_dlon
+    )
+    return EARTH_RADIUS_M * 2 * func.asin(func.sqrt(chord))
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,17 +184,15 @@ class VenueRepository:
         longitude: float | None,
         radius_m: float | None,
         only_open_now: bool,
-    ) -> Select[tuple[Venue, str | None, str | None, float | None, bool]]:
+    ) -> Select[tuple[Venue, str, str | None, float | None, bool]]:
 
-        point = (
-            ST_GeogFromText(point_ewkt(latitude, longitude))
+        near = (
+            venue_distance_m(latitude, longitude)
             if latitude is not None and longitude is not None
             else None
         )
         distance = (
-            ST_Distance(Venue.location, point).label("distance_m")
-            if point is not None
-            else literal(None).label("distance_m")
+            near.label("distance_m") if near is not None else literal(None).label("distance_m")
         )
         is_open_now = self._is_open_now_expression(local_dt).label("is_open_now")
 
@@ -184,8 +204,8 @@ class VenueRepository:
             is_open_now,
         ).where(Venue.status == VenueStatus.ACTIVE)
 
-        if point is not None and radius_m is not None:
-            stmt = stmt.where(ST_DWithin(Venue.location, point, radius_m))
+        if near is not None and radius_m is not None:
+            stmt = stmt.where(near <= radius_m)
 
         if venue_type is not None:
             stmt = stmt.where(Venue.venue_type == venue_type)
@@ -256,8 +276,7 @@ class VenueRepository:
         )
 
         if sort == SORT_DISTANCE and latitude is not None and longitude is not None:
-            point = ST_GeogFromText(point_ewkt(latitude, longitude))
-            stmt = stmt.order_by(ST_Distance(Venue.location, point).asc(), Venue.id)
+            stmt = stmt.order_by(venue_distance_m(latitude, longitude).asc(), Venue.id)
         elif sort == SORT_PRICE:
             stmt = stmt.order_by(Venue.base_price.asc().nulls_last(), Venue.id)
         else:

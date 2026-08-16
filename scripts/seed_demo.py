@@ -246,7 +246,6 @@ async def _make_venue(
     discount_percent: Decimal | None = None,
     status: VenueStatus = VenueStatus.ACTIVE,
 ) -> Venue:
-    """`location` is written as EWKT so PostGIS stores a real geography point."""
     venue = Venue(
         venue_group_id=group.id,
         owner_id=group.owner_id,
@@ -256,7 +255,6 @@ async def _make_venue(
         house_number=house_number,
         latitude=Decimal(latitude),
         longitude=Decimal(longitude),
-        location=f"SRID=4326;POINT({longitude} {latitude})",
         phone=phone,
         total_seats=total_seats,
         capacity_min=capacity_min,

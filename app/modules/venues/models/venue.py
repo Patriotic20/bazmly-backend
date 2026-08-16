@@ -1,9 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Any
 
-from geoalchemy2 import Geography
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
@@ -53,7 +51,6 @@ class Venue(IdIntPk, TimestampMixin, Base):
             postgresql_using="gin",
             postgresql_ops={"name": "gin_trgm_ops"},
         ),
-        Index("ix_venues_location", "location", postgresql_using="gist"),
         Index("ix_venues_venue_group_id_status", "venue_group_id", "status"),
         CheckConstraint(
             "status IN ('draft', 'pending', 'active', 'blocked', 'closed')",
@@ -77,11 +74,11 @@ class Venue(IdIntPk, TimestampMixin, Base):
     venue_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     street: Mapped[str] = mapped_column(String(255), nullable=False)
     house_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    # The only record of where a venue is. There was a PostGIS `geography` point
+    # beside these, which meant one place could be moved without the other; now
+    # proximity is computed from these two columns and cannot disagree with them.
     latitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
     longitude: Mapped[Decimal] = mapped_column(Numeric(9, 6), nullable=False)
-    location: Mapped[Any] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False
-    )
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     total_seats: Mapped[int | None] = mapped_column(Integer, nullable=True)
     capacity_min: Mapped[int | None] = mapped_column(Integer, nullable=True)

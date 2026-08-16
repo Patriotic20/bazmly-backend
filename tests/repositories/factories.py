@@ -118,11 +118,7 @@ async def make_venue(
     status: str = VenueStatus.ACTIVE,
     venue_type: VenueTypeSlug = VenueTypeSlug.RESTORAN,
 ) -> Venue:
-    """A venue at a real Tashkent coordinate, with an active status by default.
-
-    `location` is written as EWKT so PostGIS stores a proper geography point —
-    `ST_Distance` and `ST_DWithin` both need that, not a lat/long pair.
-    """
+    """A venue at a real Tashkent coordinate, with an active status by default."""
     group = group or await make_venue_group(session)
     district = await make_district(session)
 
@@ -135,7 +131,6 @@ async def make_venue(
         house_number="1",
         latitude=Decimal(str(latitude)),
         longitude=Decimal(str(longitude)),
-        location=f"SRID=4326;POINT({longitude} {latitude})",
         phone=f"+9987{unique_suffix()[:8]}",
         currency="UZS",
         min_advance_booking_days=1,

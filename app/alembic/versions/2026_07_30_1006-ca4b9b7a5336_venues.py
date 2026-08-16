@@ -8,7 +8,6 @@ Create Date: 2026-07-30 10:06:06.656760
 
 from collections.abc import Sequence
 
-import geoalchemy2
 import sqlalchemy as sa
 from alembic import op
 
@@ -32,19 +31,6 @@ def upgrade() -> None:
         sa.Column("house_number", sa.String(length=50), nullable=False),
         sa.Column("latitude", sa.Numeric(precision=9, scale=6), nullable=False),
         sa.Column("longitude", sa.Numeric(precision=9, scale=6), nullable=False),
-        sa.Column(
-            "location",
-            geoalchemy2.types.Geography(
-                geometry_type="POINT",
-                srid=4326,
-                dimension=2,
-                spatial_index=False,
-                from_text="ST_GeogFromText",
-                name="geography",
-                nullable=False,
-            ),
-            nullable=False,
-        ),
         sa.Column("phone", sa.String(length=20), nullable=False),
         sa.Column("total_seats", sa.Integer(), nullable=True),
         sa.Column("capacity_min", sa.Integer(), nullable=True),
@@ -91,9 +77,6 @@ def upgrade() -> None:
             ["venue_groups.id"],
         ),
         sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        "ix_venues_location", "venues", ["location"], unique=False, postgresql_using="gist"
     )
     op.create_index(op.f("ix_venues_owner_id"), "venues", ["owner_id"], unique=False)
     op.create_index(
@@ -385,6 +368,5 @@ def downgrade() -> None:
     op.drop_table("venue_amenities")
     op.drop_index("ix_venues_venue_group_id_status", table_name="venues")
     op.drop_index(op.f("ix_venues_owner_id"), table_name="venues")
-    op.drop_index("ix_venues_location", table_name="venues", postgresql_using="gist")
     op.drop_table("venues")
     # ### end Alembic commands ###

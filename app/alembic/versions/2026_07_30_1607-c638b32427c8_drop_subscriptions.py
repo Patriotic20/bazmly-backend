@@ -8,7 +8,6 @@ Create Date: 2026-07-30 16:07:55.903778
 
 from collections.abc import Sequence
 
-import geoalchemy2
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql

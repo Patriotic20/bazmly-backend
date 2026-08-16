@@ -1159,3 +1159,29 @@ All twelve acceptance checks were run on this machine. Results, in order:
 
 Checks 6–9 ran against `POSTGRES_PORT=5442 BACKEND_PORT=8010` because 5432 and
 8000 were already bound on this machine.
+
+### PostGIS dropped; distance computed arithmetically
+
+`venues.location` was a `geography(Point, 4326)` with a GiST index, and venue
+search used `ST_Distance`, `ST_DWithin` and an `ORDER BY ST_Distance`. That made
+`postgis` a hard requirement, and it was the one extension a managed PostgreSQL
+would not supply — Railway's stock database has `btree_gist` and `pg_trgm`, which
+ship with PostgreSQL, but not PostGIS, so the first migration failed and the
+service never started.
+
+The column is gone. Distance is now the haversine formula over the `latitude`
+and `longitude` columns, which were already there — the coordinates had been
+stored twice, and the derived point could disagree with the pair it came from.
+Haversine rather than the spherical law of cosines: the latter is shorter but
+loses precision at small angles, which is exactly the "which of these two
+restaurants on the same street is nearer" case.
+
+What this costs: the spatial index. A radius filter is now a sequential scan
+instead of an index lookup. At the scale this product plans for — hundreds of
+venues, not millions — that is microseconds, and it buys the ability to run on
+any PostgreSQL anywhere. If venue count ever reaches the point where it matters,
+a bounding-box prefilter on the plain lat/long columns recovers most of the
+index benefit without bringing PostGIS back.
+
+Verified against the previous behaviour numerically: the SQL expression and a
+reference haversine in Python agree to the metre on Tashkent–Samarkand.

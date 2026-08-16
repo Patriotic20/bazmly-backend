@@ -29,8 +29,9 @@ if config.config_file_name is not None:
 # app.core.database.models_registry is imported above, so every table is registered.
 target_metadata = Base.metadata
 
-# Filled from `pg_depend` at connection time. The static set below is the offline
-# fallback, since `--sql` mode has no connection to ask.
+# Filled from `pg_depend` at connection time. `--sql` mode has no connection to
+# ask, so there it stays empty — the extensions this schema uses (btree_gist,
+# pg_trgm) create no tables, so there is nothing to filter offline.
 _extension_owned_tables: frozenset[str] = frozenset()
 
 EXTENSION_OWNED_TABLES_SQL = """
@@ -40,16 +41,6 @@ JOIN pg_depend d ON d.objid = c.oid AND d.deptype = 'e'
 JOIN pg_extension e ON e.oid = d.refobjid
 WHERE c.relkind IN ('r', 'v', 'm', 'p', 'f')
 """
-
-POSTGIS_MANAGED_TABLES = frozenset(
-    {
-        "spatial_ref_sys",
-        "geography_columns",
-        "geometry_columns",
-        "raster_columns",
-        "raster_overviews",
-    }
-)
 
 
 def include_object(
@@ -65,15 +56,9 @@ def include_object(
     one revision per module was produced from a single metadata. Without the
     argument nothing is filtered, so ordinary autogenerate still sees everything.
     """
-    # PostGIS creates these in `public` and owns them. They are not in our
-    # metadata, so without this autogenerate proposes dropping them every run.
-    if type_ == "table" and name in POSTGIS_MANAGED_TABLES:
-        return False
-
-    # Anything an extension created. `postgis_tiger_geocoder` and
-    # `postgis_topology` add ~40 tables that land on the connection's search_path,
-    # so they reflect as ordinary default-schema tables our metadata has never heard
-    # of — and autogenerate proposes dropping every one of them.
+    # Anything an extension created. Such tables land on the connection's
+    # search_path and reflect as ordinary default-schema tables our metadata has
+    # never heard of — and autogenerate then proposes dropping every one.
     #
     # Filtering by `pg_depend` rather than by a hardcoded name list means enabling
     # another extension later needs no change here.
@@ -94,9 +79,6 @@ def include_object(
 
 def run_migrations_offline() -> None:
     """Run migrations without a DBAPI connection, emitting SQL to stdout."""
-    global _extension_owned_tables
-    _extension_owned_tables = POSTGIS_MANAGED_TABLES
-
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
