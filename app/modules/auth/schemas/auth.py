@@ -72,6 +72,16 @@ class TelegramLogin(BaseModel):
     init_data: str = Field(min_length=1, max_length=4096)
 
 
+class TelegramContactShare(BaseModel):
+    """`requestContact` javobi, o'zgartirilmagan holda.
+
+    Imzo aynan shu satr uchun hisoblangan, shuning uchun uni qismlarga ajratib
+    yuborish mumkin emas — raqamni alohida yuborish tekshiruvni yo'q qiladi.
+    """
+
+    contact_data: str = Field(min_length=1, max_length=4096)
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

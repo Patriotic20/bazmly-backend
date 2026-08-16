@@ -6,6 +6,7 @@ from app.modules.auth.schemas.auth import (
     PhoneRegister,
     RefreshRequest,
     StaffLogin,
+    TelegramContactShare,
     TelegramLogin,
     TokenPair,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "PhoneRegister",
     "RefreshRequest",
     "StaffLogin",
+    "TelegramContactShare",
     "TelegramLogin",
     "TokenPair",
     "UserCreate",

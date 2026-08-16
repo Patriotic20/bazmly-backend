@@ -31,10 +31,12 @@ from app.modules.auth.schemas import (
     PhoneLogin,
     PhoneRegister,
     StaffLogin,
+    TelegramContactShare,
     TelegramLogin,
     TokenPair,
 )
-from app.modules.auth.telegram import TelegramUser, parse_init_data
+from app.modules.auth.schemas.user import UserRead
+from app.modules.auth.telegram import TelegramUser, parse_contact, parse_init_data
 from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE, LanguageRepository
 
 ACCESS_TOKEN_TTL = timedelta(minutes=30)
@@ -141,6 +143,49 @@ class AuthService:
         pair = await self._issue_tokens_in_transaction(user, now)
         await self.session.commit()
         return pair
+
+    async def attach_telegram_contact(
+        self, user_id: int, payload: TelegramContactShare
+    ) -> UserRead:
+        """Store the phone number Telegram vouched for on the signed-in account.
+
+        Telegram verified this number when the account was created, so a valid
+        signature is stronger evidence than a code we could send and ask the
+        person to type back — and it costs the user one tap instead of six digits.
+
+        Two checks, and both matter. The signature says Telegram wrote this; the
+        `user_id` comparison says it is about *this* person. Without the second,
+        a payload captured from one account would attach its phone to another.
+        """
+        now = utcnow_naive()
+        contact = parse_contact(
+            payload.contact_data,
+            settings.telegram.bot_token,
+            now.replace(tzinfo=UTC),
+            settings.telegram.init_data_max_age_seconds,
+        )
+
+        user = await self.users.get_by_id(user_id)
+        if user is None:
+            raise NotFoundError("Foydalanuvchi topilmadi")
+
+        if user.telegram_id is None or user.telegram_id != contact.user_id:
+            raise PermissionDeniedError("Bu kontakt boshqa akkauntga tegishli")
+
+        # Already normalised to +998XXXXXXXXX by the annotated type on the model.
+        phone = contact.phone_number
+
+        existing = await self.users.get_by_phone(phone)
+        if existing is not None and existing.id != user.id:
+            raise PhoneAlreadyRegisteredError()
+
+        try:
+            updated = await self.users.update_profile(user.id, {"phone": phone})
+        except IntegrityError as error:
+            raise translate_integrity_error(error) from error
+
+        await self.session.commit()
+        return UserRead.model_validate(updated if updated is not None else user)
 
     async def _create_from_telegram(self, telegram_user: TelegramUser) -> User:
         """Telegram guarantees an id and a first name, and promises nothing else."""

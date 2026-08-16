@@ -11,6 +11,7 @@ from app.modules.auth.schemas import (
     PhoneRegister,
     RefreshRequest,
     StaffLogin,
+    TelegramContactShare,
     TelegramLogin,
     TokenPair,
     UserProfileUpdate,
@@ -73,6 +74,25 @@ async def login(payload: PhoneLogin, service: AuthServiceDep) -> TokenPair:
 )
 async def telegram_login(payload: TelegramLogin, service: AuthServiceDep) -> TokenPair:
     return with_access_token(await service.telegram_login(payload))
+
+
+@router.post(
+    "/telegram/contact",
+    response_model=UserRead,
+    operation_id="auth_telegram_contact",
+    summary="Telegram orqali raqamni tasdiqlash",
+    description=(
+        "Mini App uchun. `Telegram.WebApp.requestContact` javobi o'zgartirilmagan "
+        "holda yuboriladi; imzo tekshirilgach, raqam akkauntga biriktiriladi. "
+        "Tasdiqlash kodi yuborilmaydi — raqamni Telegram allaqachon tekshirgan."
+    ),
+)
+async def telegram_contact(
+    payload: TelegramContactShare,
+    user: CurrentUser,
+    service: AuthServiceDep,
+) -> UserRead:
+    return await service.attach_telegram_contact(user.id, payload)
 
 
 @router.post(
