@@ -42,3 +42,20 @@ class RegionWithDistrictsRead(ReadSchema):
     name: str
     code: str
     districts: list[DistrictRead]
+
+
+class NearestDistrictRead(ReadSchema):
+    """Qayerdaman: koordinatadan tuman va viloyat.
+
+    `distance_m` — nuqtadan tuman markazigacha. Mamlakatdan tashqaridagi
+    koordinata ham eng yaqin tumanni qaytaradi, shuning uchun masofa kerak:
+    mijoz uni ko'rib, javob ma'noli yoki yo'qligini hal qiladi.
+    """
+
+    district_id: int
+    district_name: str
+    region_id: int
+    region_name: str
+    latitude: Decimal
+    longitude: Decimal
+    distance_m: float

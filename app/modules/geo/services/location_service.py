@@ -10,6 +10,7 @@ from app.modules.geo.repositories import (
 )
 from app.modules.geo.schemas import (
     DistrictRead,
+    NearestDistrictRead,
     RegionRead,
     RegionWithDistrictsRead,
     UserAddressCreate,
@@ -34,6 +35,27 @@ class LocationService:
             DistrictRead.model_validate(row)
             for row in await self.districts.list_by_region(region_id)
         ]
+
+    async def find_nearest_district(self, latitude: float, longitude: float) -> NearestDistrictRead:
+        """Turn a coordinate into the place name a person would use.
+
+        Raises rather than returning `None` when the table is empty, because an
+        unseeded `districts` is a broken deployment, not a location the caller
+        should try to render.
+        """
+        found = await self.districts.find_nearest(latitude, longitude)
+        if found is None:
+            raise NotFoundError("Tuman topilmadi")
+        district, region, distance_m = found
+        return NearestDistrictRead(
+            district_id=district.id,
+            district_name=district.name,
+            region_id=region.id,
+            region_name=region.name,
+            latitude=district.latitude,
+            longitude=district.longitude,
+            distance_m=distance_m,
+        )
 
     async def get_region_with_districts(self, region_id: int) -> RegionWithDistrictsRead:
         result = await self.regions.get_with_districts(region_id)

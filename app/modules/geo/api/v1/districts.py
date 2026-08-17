@@ -1,12 +1,42 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, Query, status
 
 from app.core.dependencies import AdminUser, SessionDep
-from app.modules.geo.schemas import DistrictCreate, DistrictRead, DistrictUpdate
-from app.modules.geo.services import DistrictService
+from app.modules.geo.schemas import (
+    DistrictCreate,
+    DistrictRead,
+    DistrictUpdate,
+    NearestDistrictRead,
+)
+from app.modules.geo.services import DistrictService, LocationService
 
 router = APIRouter(prefix="/v1/districts", tags=["geo"])
+
+
+@router.get(
+    "/nearest",
+    response_model=NearestDistrictRead,
+    operation_id="geo_nearest_district",
+    summary="Koordinata bo'yicha eng yaqin tuman",
+    description=(
+        "Telefon bergan koordinatadan tuman va viloyatni aniqlaydi — mijoz "
+        "o'zining tumanini qo'lda tanlamasligi uchun. Ochiq: manzil hisobdan "
+        "oldin ham kerak. `distance_m` — tuman markazigacha bo'lgan masofa."
+    ),
+)
+async def nearest_district(
+    session: SessionDep,
+    lat: Annotated[float, Query(ge=-90, le=90)],
+    lng: Annotated[float, Query(ge=-180, le=180)],
+) -> NearestDistrictRead:
+    """Public on purpose: a customer picks a location before an account exists.
+
+    Global bounds rather than Uzbekistan's, so a phone reporting a coordinate
+    from anywhere still gets an answer with an honest `distance_m` instead of a
+    422 the app would have to explain.
+    """
+    return await LocationService(session).find_nearest_district(lat, lng)
 
 
 @router.post(

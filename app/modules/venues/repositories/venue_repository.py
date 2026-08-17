@@ -6,10 +6,8 @@ from typing import Any
 
 from sqlalchemy import (
     ColumnElement,
-    Float,
     Select,
     case,
-    cast,
     func,
     literal,
     select,
@@ -17,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.geo import haversine_distance_m
 from app.core.pagination import Page
 from app.modules.catalog.models import Amenity
 from app.modules.reviews.models import Review, ReviewStatus
@@ -39,35 +38,13 @@ SORT_RATING = "rating"
 SORT_PRICE = "price"
 
 
-# Mean Earth radius. Distances here are "how far is this restaurant", where a
-# sphere is accurate to about 0.3% — far below the error already in a venue's
-# hand-entered coordinates.
-EARTH_RADIUS_M = 6_371_000.0
-
-
 def venue_distance_m(latitude: float, longitude: float) -> ColumnElement[float]:
     """Great-circle distance from a point to `venues`, in metres.
 
-    The haversine formula rather than the spherical law of cosines: the latter
-    is shorter but loses precision at small angles, and "which of these two
-    restaurants on the same street is nearer" is exactly the small-angle case.
-
-    This replaced `ST_Distance` over a PostGIS `geography` column. It costs the
-    spatial index -- a radius filter is now a scan -- which is the trade that
-    lets the schema run on any stock PostgreSQL.
+    A thin name over the shared helper, kept because "distance to a venue" reads
+    better at every call site than the four-argument general form.
     """
-    lat1 = func.radians(literal(float(latitude)))
-    lon1 = func.radians(literal(float(longitude)))
-    lat2 = func.radians(cast(Venue.latitude, Float))
-    lon2 = func.radians(cast(Venue.longitude, Float))
-
-    sin_half_dlat = func.sin((lat2 - lat1) / 2)
-    sin_half_dlon = func.sin((lon2 - lon1) / 2)
-    chord = (
-        sin_half_dlat * sin_half_dlat
-        + func.cos(lat1) * func.cos(lat2) * sin_half_dlon * sin_half_dlon
-    )
-    return EARTH_RADIUS_M * 2 * func.asin(func.sqrt(chord))
+    return haversine_distance_m(latitude, longitude, Venue.latitude, Venue.longitude)
 
 
 @dataclass(frozen=True, slots=True)

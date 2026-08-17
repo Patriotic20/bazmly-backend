@@ -2,6 +2,7 @@ from app.modules.geo.schemas.district import (
     DistrictCreate,
     DistrictRead,
     DistrictUpdate,
+    NearestDistrictRead,
     RegionWithDistrictsRead,
 )
 from app.modules.geo.schemas.region import RegionCreate, RegionRead, RegionUpdate
@@ -11,6 +12,7 @@ __all__ = [
     "DistrictCreate",
     "DistrictRead",
     "DistrictUpdate",
+    "NearestDistrictRead",
     "RegionCreate",
     "RegionRead",
     "RegionUpdate",

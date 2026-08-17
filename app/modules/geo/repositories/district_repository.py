@@ -5,7 +5,9 @@ from typing import Any
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.geo import haversine_distance_m
 from app.modules.geo.models import District
+from app.modules.geo.models.region import Region
 from app.modules.geo.models.user_recent_location import UserRecentLocation
 from app.modules.venues.models import Venue
 
@@ -23,6 +25,34 @@ class DistrictRepository:
             select(District).where(District.region_id == region_id).order_by(District.name)
         )
         return result.scalars().all()
+
+    async def find_nearest(
+        self, latitude: float, longitude: float
+    ) -> tuple[District, Region, float] | None:
+        """The district whose centre is closest to a point, with its region.
+
+        This is the whole of "where am I": the app has a pair of coordinates from
+        the phone and needs the name a person would say. Reverse geocoding proper
+        would need a street-level dataset and a provider to host it; the 209
+        seeded district centres answer the only question the app actually asks —
+        which tuman to show venues from.
+
+        The distance comes back with the row so the caller can tell "you are in
+        Chilonzor" from "the nearest district centre is 300 km away", which is
+        what a coordinate from outside the country looks like.
+        """
+        distance = haversine_distance_m(latitude, longitude, District.latitude, District.longitude)
+        result = await self.session.execute(
+            select(District, Region, distance)
+            .join(Region, Region.id == District.region_id)
+            .order_by(distance)
+            .limit(1)
+        )
+        row = result.first()
+        if row is None:
+            return None
+        district, region, distance_m = row
+        return district, region, float(distance_m)
 
     async def count_for_region(self, region_id: int) -> int:
         result = await self.session.execute(
