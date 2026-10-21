@@ -10,7 +10,6 @@ from app.core.exceptions import (
     NotFoundError,
     PermissionDeniedError,
     PhoneAlreadyRegisteredError,
-    ValidationFailedError,
 )
 from app.core.integrity import translate_integrity_error
 from app.core.security import (
@@ -37,7 +36,6 @@ from app.modules.auth.schemas import (
 )
 from app.modules.auth.schemas.user import UserRead
 from app.modules.auth.telegram import TelegramUser, parse_contact, parse_init_data
-from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE, LanguageRepository
 
 ACCESS_TOKEN_TTL = timedelta(minutes=30)
 REFRESH_TOKEN_TTL = timedelta(days=30)
@@ -66,7 +64,6 @@ class AuthService:
         self.session = session
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
-        self.languages = LanguageRepository(session)
 
     async def check_phone(self, payload: PhoneCheck) -> PhoneCheckResult:
         """Which of the two next screens the client should show. No token."""
@@ -87,14 +84,12 @@ class AuthService:
         if existing is not None:
             raise PhoneAlreadyRegisteredError()
 
-        language_id = payload.language_id or await self._default_language_id()
         try:
             user = await self.users.create(
                 User(
                     first_name=payload.first_name,
                     last_name=payload.last_name,
                     phone=payload.phone,
-                    language_id=language_id,
                     district_id=payload.district_id,
                     role=UserRole.CUSTOMER,
                     status=UserStatus.ACTIVE,
@@ -189,13 +184,6 @@ class AuthService:
 
     async def _create_from_telegram(self, telegram_user: TelegramUser) -> User:
         """Telegram guarantees an id and a first name, and promises nothing else."""
-        language = None
-        if telegram_user.language_code:
-            # `ru-RU` and `ru` both mean the same row; an unknown code is not an
-            # error, it just means the interface stays in Uzbek.
-            language = await self.languages.get_by_code(telegram_user.language_code[:2].lower())
-        language_id = language.id if language else await self._default_language_id()
-
         try:
             return await self.users.create(
                 User(
@@ -203,7 +191,6 @@ class AuthService:
                     last_name=telegram_user.last_name or "",
                     telegram_id=telegram_user.id,
                     avatar_url=telegram_user.photo_url,
-                    language_id=language_id,
                     role=UserRole.CUSTOMER,
                     status=UserStatus.ACTIVE,
                     must_change_password=False,
@@ -328,12 +315,6 @@ class AuthService:
         next screen, and refusing the token would make it unreachable."""
         if user.status in (UserStatus.BLOCKED, UserStatus.DELETED):
             raise PermissionDeniedError("Bu akkaunt faol emas")
-
-    async def _default_language_id(self) -> int:
-        language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
-        if language is None:
-            raise ValidationFailedError("Asosiy til sozlanmagan")
-        return language.id
 
     async def _issue_tokens_in_transaction(self, user: User, now: datetime) -> TokenPair:
         refresh_token = generate_token()

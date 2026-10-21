@@ -29,7 +29,7 @@ from app.modules.bookings.models import (
 from app.modules.bookings.models import (
     BookingService as BookingServiceRow,
 )
-from app.modules.bookings.repositories import BookingRepository
+from app.modules.bookings.repositories import BookingRepository, VenueBookingRow
 from app.modules.bookings.schemas import (
     BookingCancel,
     BookingItemCreate,
@@ -43,6 +43,7 @@ from app.modules.bookings.schemas import (
     PriceLineRead,
     SeatedSummary,
     TableReservationCreate,
+    VenueBookingRead,
 )
 from app.modules.menu.models import MenuItem
 from app.modules.menu.repositories import MenuItemRepository
@@ -258,9 +259,9 @@ class BookingService:
 
     async def venue_day(
         self, venue_id: int, day: date_type, statuses: Sequence[str] | None = None
-    ) -> Sequence[BookingRead]:
-        rows = await self.bookings.list_for_venue_day(venue_id, day, statuses)
-        return [BookingRead.model_validate(row) for row in rows]
+    ) -> Sequence[VenueBookingRead]:
+        rows = await self.bookings.list_rows_for_venue_day(venue_id, day, statuses)
+        return [self._venue_read(row) for row in rows]
 
     async def cancel(self, user_id: int, booking_id: int, payload: BookingCancel) -> BookingRead:
         """Inside the deposit window the deposit is forfeited; outside it a refund
@@ -327,7 +328,9 @@ class BookingService:
             reason=payload.reason,
         )
 
-    async def check_in_by_qr(self, staff_user_id: int, venue_id: int, qr_token: str) -> BookingRead:
+    async def check_in_by_qr(
+        self, staff_user_id: int, venue_id: int, qr_token: str
+    ) -> VenueBookingRead:
         """Scanned by the venue, from the token the guest shows.
 
         Three separate refusals, in order: the token must exist, the scanner must
@@ -346,7 +349,11 @@ class BookingService:
         if updated is None:
             raise BookingNotCheckInableError("Bu bron tasdiqlanmagan yoki allaqachon qayd etilgan")
         await self.session.commit()
-        return BookingRead.model_validate(updated)
+        # The scanner's screen tells staff which table to walk the guest to.
+        row = await self.bookings.get_venue_row(updated.id)
+        if row is None:
+            raise NotFoundError("Bron topilmadi")
+        return self._venue_read(row)
 
     async def check_out(self, staff_user_id: int, venue_id: int, booking_id: int) -> SeatedSummary:
         """Writes `seated_minutes` once, in whole minutes."""
@@ -381,6 +388,16 @@ class BookingService:
         return ids
 
     # --- internals -----------------------------------------------------------
+
+    @staticmethod
+    def _venue_read(row: VenueBookingRow) -> VenueBookingRead:
+        return VenueBookingRead.model_validate(
+            {
+                **BookingRead.model_validate(row.booking).model_dump(),
+                "venue_name": row.venue_name,
+                "table_number": row.table_number,
+            }
+        )
 
     async def _require_venue(self, venue_id: int) -> Venue:
         venue = await self.venues.get_by_id(venue_id)
@@ -510,8 +527,8 @@ class BookingService:
             service = await self.venue_services.get_by_id(entry.venue_service_id)
             if service is None:
                 raise NotFoundError("Xizmat topilmadi")
-            detail = await self.venue_services.get_with_items(service.id)
-            name = f"#{service.id}" if detail is None else f"#{service.service_catalog_id}"
+            # Snapshotted so the receipt keeps the name it was sold under.
+            name = await self.venue_services.catalog_name(service)
             line_total = _money(service.price * entry.quantity)
             total += line_total
             rows.append(

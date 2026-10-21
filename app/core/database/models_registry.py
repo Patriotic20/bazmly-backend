@@ -4,7 +4,7 @@ Used by Alembic env.py and anywhere that needs all tables registered.
 
 Imports are grouped per module, in the same dependency order as the migrations:
 
-    localization → geo → auth → catalog → venue_groups → venues → staff
+    geo → auth → catalog → venue_groups → venues → staff
       → menu → services → bookings → orders
       → reviews → engagement → analytics
 
@@ -36,7 +36,6 @@ from app.modules.engagement.models import (
     SearchHistory,
 )
 from app.modules.geo.models import District, Region, UserRecentLocation
-from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuCategory,
     MenuItem,
@@ -89,7 +88,6 @@ __all__ = [
     "District",
     "Favorite",
     "Friendship",
-    "Language",
     "MenuCategory",
     "MenuItem",
     "MenuItemBranch",

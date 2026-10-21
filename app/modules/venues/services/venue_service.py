@@ -8,10 +8,11 @@ from app.core.exceptions import NotFoundError
 from app.core.pagination import Page
 from app.modules.catalog.schemas import AmenityRead
 from app.modules.staff.services import StaffService
-from app.modules.venues.enums import VenueStatus
-from app.modules.venues.repositories import VenueRepository
+from app.modules.venues.enums import VenueStatus, VenueTypeSlug
+from app.modules.venues.repositories import VenueGuestTierRepository, VenueRepository
 from app.modules.venues.schemas import (
     VenueDetailRead,
+    VenueGuestTierRead,
     VenueListItem,
     VenuePhotoRead,
     VenueRead,
@@ -28,6 +29,7 @@ class VenueService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.venues = VenueRepository(session)
+        self.tiers = VenueGuestTierRepository(session)
         self.staff = StaffService(session)
 
     async def search(
@@ -60,7 +62,12 @@ class VenueService:
                 id=row.venue.id,
                 name=row.name,
                 tagline=row.tagline,
+                venue_type=VenueTypeSlug(row.venue.venue_type),
                 status=VenueStatus(row.venue.status),
+                street=row.venue.street,
+                house_number=row.venue.house_number,
+                capacity_min=row.venue.capacity_min,
+                capacity_max=row.venue.capacity_max,
                 rating_avg=row.venue.rating_avg,
                 reviews_count=row.venue.reviews_count,
                 base_price=row.venue.base_price,
@@ -69,6 +76,7 @@ class VenueService:
                 requires_deposit=row.venue.requires_deposit,
                 distance_m=row.distance_m,
                 is_open_now=row.is_open_now,
+                cover_url=row.cover_url,
             )
             for row in page.items
         ]
@@ -111,6 +119,10 @@ class VenueService:
                 for row in detail.working_hours
             ],
             is_open_now=is_open,
+            guest_tiers=[
+                VenueGuestTierRead.model_validate(tier)
+                for tier in await self.tiers.list_for_venue(venue_id)
+            ],
         )
 
     async def list_for_group(self, group_id: int, status: str | None = None) -> Sequence[VenueRead]:

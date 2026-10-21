@@ -62,6 +62,7 @@ class VenueSearchRow:
     tagline: str | None
     distance_m: float | None
     is_open_now: bool
+    cover_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +162,7 @@ class VenueRepository:
         longitude: float | None,
         radius_m: float | None,
         only_open_now: bool,
-    ) -> Select[tuple[Venue, str, str | None, float | None, bool]]:
+    ) -> Select[tuple[Venue, str, str | None, float | None, bool, str | None]]:
 
         near = (
             venue_distance_m(latitude, longitude)
@@ -172,6 +173,17 @@ class VenueRepository:
             near.label("distance_m") if near is not None else literal(None).label("distance_m")
         )
         is_open_now = self._is_open_now_expression(local_dt).label("is_open_now")
+        # The card's picture: the photo marked as cover, else the first one — the
+        # same order the detail screen lists them in.
+        cover_url = (
+            select(VenuePhoto.url)
+            .where(VenuePhoto.venue_id == Venue.id)
+            .order_by(VenuePhoto.is_cover.desc(), VenuePhoto.sort_order, VenuePhoto.id)
+            .limit(1)
+            .correlate(Venue)
+            .scalar_subquery()
+            .label("cover_url")
+        )
 
         stmt = select(
             Venue,
@@ -179,6 +191,7 @@ class VenueRepository:
             Venue.tagline,
             distance,
             is_open_now,
+            cover_url,
         ).where(Venue.status == VenueStatus.ACTIVE)
 
         if near is not None and radius_m is not None:
@@ -270,6 +283,7 @@ class VenueRepository:
                 tagline=row[2],
                 distance_m=float(row[3]) if row[3] is not None else None,
                 is_open_now=bool(row[4]),
+                cover_url=row[5],
             )
             for row in result.all()
         ]

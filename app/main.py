@@ -11,6 +11,7 @@ from app.core.handlers import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.middleware.logging import LoggingMiddleware
 from app.core.middleware.request_id import RequestIDMiddleware
+from app.core.openapi import mount_audience_docs
 from app.core.redis import close_redis
 from app.core.router import main_router
 
@@ -42,7 +43,9 @@ app = FastAPI(
         "tugashini kutmasdan darhol kuchga kiradi.\n\n"
         "Har qanday xatolik bir xil ko'rinishda qaytariladi: `code`, `message`, "
         "`details`, `request_id`. Mijoz ilovasi doim `code` bo'yicha shart tuzishi "
-        "kerak — `message` faqat ekranda ko'rsatish uchun."
+        "kerak — `message` faqat ekranda ko'rsatish uchun.\n\n"
+        "Bu sahifa to'liq ro'yxat. Auditoriya bo'yicha ajratilgan hujjatlar: "
+        "boshqaruv paneli uchun `/api/docs/admin`, mijoz ilovasi uchun `/api/docs/app`."
     ),
     # Under the API prefix so a reverse proxy can route one path to this service.
     docs_url=f"{settings.api.prefix}/docs",
@@ -51,13 +54,6 @@ app = FastAPI(
     # Declared in the order `app/core/router.py` includes them, so the Swagger
     # sections follow the module order instead of first-use order.
     openapi_tags=[
-        {
-            "name": "localization",
-            "description": (
-                "Interfeys tili ro'yxati. Kontent faqat o'zbek tilida — bu ro'yxat "
-                "foydalanuvchining `users.language_id` sozlamasi uchun."
-            ),
-        },
         {"name": "geo", "description": "Viloyatlar va tumanlar."},
         {"name": "catalog", "description": "Muassasa turlari va qulayliklar."},
         {"name": "auth", "description": "Ro'yxatdan o'tish, kirish va token yangilash."},
@@ -67,7 +63,8 @@ app = FastAPI(
         {"name": "venue:venues", "description": "Filiallar — filial boshqaruvi."},
         {"name": "venue:staff", "description": "Hodimlar — ish joyi va taklifnomalar."},
         {"name": "venue:menu", "description": "Menyu konstruktori."},
-        {"name": "services", "description": "Qo'shimcha xizmatlar katalogi va narxlari."},
+        {"name": "services", "description": "Qo'shimcha xizmatlar katalogi."},
+        {"name": "venue:services", "description": "Xizmatlarga narx belgilash."},
         {"name": "bookings", "description": "Mijoz bronlari — Joylar bo'limi."},
         {"name": "venue:bookings", "description": "Kutilayotgan mijozlar — kunlik navbat."},
         {"name": "venue:orders", "description": "Buyurtmalar — stollardagi ochiq cheklar."},
@@ -93,6 +90,8 @@ app.add_middleware(
 
 register_exception_handlers(app)
 app.include_router(main_router)
+# After the routers: the filtered docs are cut from the finished route table.
+mount_audience_docs(app, settings.api.prefix)
 
 
 if __name__ == "__main__":

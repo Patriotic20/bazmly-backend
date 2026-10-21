@@ -23,6 +23,7 @@ SCHEMA_PLAN.md
 SERVICE_PLAN.md
 REPOSITORY_PLAN.md
 make_plan.md
+docker-compose.yml
 Dockerfile
 .dockerignore
 railway.json

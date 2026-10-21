@@ -13,6 +13,7 @@ from app.modules.bookings.schemas.booking import (
     PriceQuote,
     SeatedSummary,
     TableReservationCreate,
+    VenueBookingRead,
 )
 from app.modules.bookings.schemas.booking_item import BookingItemCreate, BookingItemRead
 from app.modules.bookings.schemas.booking_service import (
@@ -41,4 +42,5 @@ __all__ = [
     "PriceQuote",
     "SeatedSummary",
     "TableReservationCreate",
+    "VenueBookingRead",
 ]

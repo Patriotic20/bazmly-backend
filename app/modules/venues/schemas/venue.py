@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.core.schemas import Money, PhoneNumber, ReadSchema, UpdateSchema
 from app.modules.catalog.schemas import AmenityRead
 from app.modules.venues.enums import VenueStatus, VenueTypeSlug
+from app.modules.venues.schemas.venue_guest_tier import VenueGuestTierRead
 
 SORT_DISTANCE = "distance"
 SORT_RATING = "rating"
@@ -81,7 +82,12 @@ class VenueListItem(ReadSchema):
     id: int
     name: str
     tagline: str | None = None
+    venue_type: VenueTypeSlug
     status: VenueStatus
+    street: str
+    house_number: str
+    capacity_min: int | None = None
+    capacity_max: int | None = None
     rating_avg: Decimal
     reviews_count: int
     base_price: Money | None = None
@@ -90,6 +96,7 @@ class VenueListItem(ReadSchema):
     requires_deposit: bool
     distance_m: float | None = None
     is_open_now: bool = False
+    cover_url: str | None = None
 
 
 class VenueRead(ReadSchema):
@@ -145,6 +152,8 @@ class VenueDetailRead(ReadSchema):
     venue_type: VenueTypeSlug
     working_hours: list[VenueWorkingHoursRead]
     is_open_now: bool = False
+    # To'yxona narx bosqichlari; restoranda bo'sh.
+    guest_tiers: list[VenueGuestTierRead] = Field(default_factory=list)
 
 
 class VenueSearchParams(BaseModel):

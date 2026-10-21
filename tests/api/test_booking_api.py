@@ -193,8 +193,8 @@ async def test_confirming_a_request_lets_the_ticket_be_scanned(
     assert confirmed.json()["status"] == "confirmed"
     assert confirmed.json()["confirmed_at"] is not None
 
-    # `venue_id` goes in the query as well as the body: the permission guard
-    # reads the query string, and a body it never looks at cannot satisfy it.
+    # A query copy of `venue_id` is still accepted alongside the body, as long as
+    # the two agree.
     scanned = await api_client.post(
         f"/api/v1/venue/bookings/check-in?venue_id={venue.id}",
         json={"venue_id": venue.id, "qr_token": created["qr_token"]},
@@ -304,3 +304,65 @@ async def test_a_waiter_may_confirm_but_not_reject(
         headers=auth_header(waiter.id),
     )
     assert confirmed.status_code == 200
+
+
+async def test_check_in_takes_the_branch_from_the_body(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """The scanner sends `venue_id` in the body only. The guard used to read the
+    query alone and refused every such scan with 422, so no ticket was ever
+    checked in from the partner panel."""
+    venue, table, guest, staff = await make_staffed(session)
+    created = await book(api_client, venue, table, guest)
+    await api_client.post(
+        f"/api/v1/venue/bookings/{created['booking']['id']}/confirm?venue_id={venue.id}",  # type: ignore[index]
+        headers=auth_header(staff.id),
+    )
+
+    scanned = await api_client.post(
+        "/api/v1/venue/bookings/check-in",
+        json={"venue_id": venue.id, "qr_token": created["qr_token"]},
+        headers=auth_header(staff.id),
+    )
+
+    assert scanned.status_code == 200, scanned.text
+    body = scanned.json()
+    assert body["status"] == "checked_in"
+    # What the scanner screen prints: which table to walk the guest to.
+    assert body["table_number"] == table.number
+    assert body["venue_name"] == venue.name
+
+
+async def test_check_in_refuses_a_query_branch_that_disagrees_with_the_body(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """Otherwise the guard would authorise one branch and the scan act on another."""
+    venue, table, guest, staff = await make_staffed(session)
+    created = await book(api_client, venue, table, guest)
+
+    scanned = await api_client.post(
+        f"/api/v1/venue/bookings/check-in?venue_id={venue.id + 1000}",
+        json={"venue_id": venue.id, "qr_token": created["qr_token"]},
+        headers=auth_header(staff.id),
+    )
+
+    assert scanned.status_code == 422, scanned.text
+
+
+async def test_the_day_list_carries_table_number_and_branch_name(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """The table board matches bookings to tables by number, not by id."""
+    venue, table, guest, staff = await make_staffed(session)
+    created = await book(api_client, venue, table, guest)
+
+    listed = await api_client.get(
+        "/api/v1/venue/bookings",
+        params={"venue_id": venue.id, "day": created["booking"]["booking_date"]},  # type: ignore[index]
+        headers=auth_header(staff.id),
+    )
+
+    assert listed.status_code == 200, listed.text
+    [row] = listed.json()
+    assert row["table_number"] == table.number
+    assert row["venue_name"] == venue.name

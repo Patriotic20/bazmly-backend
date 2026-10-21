@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import NotFoundError
 from app.modules.engagement.repositories import FavoriteRepository
 from app.modules.engagement.schemas import FavoriteRead, FavoriteToggled
-from app.modules.venues.enums import VenueStatus
+from app.modules.venues.enums import VenueStatus, VenueTypeSlug
 from app.modules.venues.repositories import VenueRepository
 from app.modules.venues.schemas import VenueListItem
 
@@ -42,7 +42,12 @@ class FavoriteService:
                     id=row.venue.id,
                     name=row.name,
                     tagline=row.tagline,
+                    venue_type=VenueTypeSlug(row.venue.venue_type),
                     status=VenueStatus(row.venue.status),
+                    street=row.venue.street,
+                    house_number=row.venue.house_number,
+                    capacity_min=row.venue.capacity_min,
+                    capacity_max=row.venue.capacity_max,
                     rating_avg=row.venue.rating_avg,
                     reviews_count=row.venue.reviews_count,
                     base_price=row.venue.base_price,

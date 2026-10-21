@@ -4,7 +4,6 @@ from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
-from app.modules.localization.repositories import LanguageRepository
 from app.modules.menu.enums import MenuItemStatus
 from app.modules.menu.models import (
     MenuCategory,
@@ -39,7 +38,6 @@ class MenuService:
         self.session = session
         self.categories = MenuCategoryRepository(session)
         self.items = MenuItemRepository(session)
-        self.languages = LanguageRepository(session)
         self.staff = StaffService(session)
 
     async def list_categories(
@@ -65,9 +63,13 @@ class MenuService:
         return [
             MenuItemListItem(
                 id=row.item.id,
+                menu_category_id=row.item.menu_category_id,
+                category_name=row.category_name,
                 name=row.name,
+                description=row.description,
                 photo_url=row.item.photo_url,
                 effective_price=row.effective_price,
+                price_from=row.price_from,
                 currency=row.item.currency,
                 discount_percent=row.item.discount_percent,
                 has_variants=row.item.has_variants,
@@ -168,6 +170,12 @@ class MenuService:
                     is_active=True,
                 )
             )
+
+        # Offered at the acting branch from the start. The response is read back
+        # through that branch's menu, so without this row a successful create
+        # answered 404 — and the dish never showed up on the menu it was added
+        # from. Step 3 (`set_branch_availability`) still widens or narrows it.
+        await self.items.set_branch_availability(item.id, [venue_id])
 
         await self.session.commit()
         return await self.get_item(item.id, venue_id)

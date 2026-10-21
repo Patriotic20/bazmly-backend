@@ -13,7 +13,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Header, Path, Query, Request, params
+from fastapi import Depends, Path, Query, Request, params
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,8 +30,6 @@ from app.core.security import TokenError, decode_access_token
 from app.modules.auth.enums import UserRole, UserStatus
 from app.modules.auth.schemas import UserRead
 from app.modules.auth.services import UserService
-from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE
-from app.modules.localization.services import LanguageService
 from app.modules.staff.services import StaffService
 
 DEFAULT_LIMIT = 20
@@ -179,40 +177,6 @@ async def get_current_user_optional(
 OptionalUser = Annotated[UserRead | None, Depends(get_current_user_optional)]
 
 
-async def get_language_id(
-    session: SessionDep,
-    user: OptionalUser,
-    accept_language: Annotated[str | None, Header()] = None,
-) -> int:
-    """`Accept-Language` → the signed-in user's language → uz.
-
-    The header wins over the stored preference because a person switching their
-    phone's language expects the app to follow immediately, without a profile edit.
-    """
-    languages = LanguageService(session)
-
-    if accept_language:
-        # "uz-UZ,uz;q=0.9,ru;q=0.8" -> try each tag in the order offered.
-        for part in accept_language.split(","):
-            tag = part.split(";")[0].strip().split("-")[0].lower()
-            if not tag:
-                continue
-            language = await languages.get_by_code(tag)
-            if language is not None:
-                return language.id
-
-    if user is not None:
-        return user.language_id
-
-    fallback = await languages.get_by_code(DEFAULT_LANGUAGE_CODE)
-    if fallback is None:
-        raise ValidationFailedError("Tillar sozlanmagan")
-    return fallback.id
-
-
-LanguageId = Annotated[int, Depends(get_language_id)]
-
-
 @dataclass(frozen=True, slots=True)
 class Pagination:
     limit: int
@@ -255,6 +219,27 @@ def get_client_location(
 ClientLocationDep = Annotated[ClientLocation | None, Depends(get_client_location)]
 
 
+async def get_verified_group_id(
+    session: SessionDep,
+    user: CurrentUser,
+    group_id: Annotated[int, Query(ge=1)],
+) -> int:
+    """A required `group_id` that must name a chain the caller works in.
+
+    For the partner reads that have no permission guard of their own. Without
+    this, any signed-in user could read another chain's staff list by picking
+    its id off a URL — the query param alone is a claim, not authority.
+    """
+    if auth_disabled():
+        return group_id
+    if group_id not in await StaffService(session).group_ids_for(user.id):
+        raise PermissionDeniedError("Siz bu tarmoqda ishlamaysiz")
+    return group_id
+
+
+VerifiedGroupId = Annotated[int, Depends(get_verified_group_id)]
+
+
 class PermissionRequired:
     """Guards a staff-facing write, and resolves the caller while it is there.
 
@@ -276,8 +261,9 @@ class PermissionRequired:
     `.slug`, which a closure could not expose.
     """
 
-    def __init__(self, slug: str) -> None:
+    def __init__(self, slug: str, *, venue_in_body: bool = False) -> None:
         self.slug = slug
+        self.venue_in_body = venue_in_body
 
     async def __call__(
         self,
@@ -289,6 +275,8 @@ class PermissionRequired:
         if auth_disabled():
             return user
         raw = request.path_params.get("venue_id", venue_id_query)
+        if self.venue_in_body:
+            raw = await self._reconcile_with_body(request, raw)
         if raw is None:
             raise ValidationFailedError(
                 "Bu amal uchun `venue_id` talab qilinadi",
@@ -296,6 +284,30 @@ class PermissionRequired:
             )
         await StaffService(session).require_permission_in_transaction(user.id, int(raw), self.slug)
         return user
+
+    async def _reconcile_with_body(
+        self, request: Request, raw: int | str | None
+    ) -> int | str | None:
+        """For the routes whose handler acts on the body's `venue_id`.
+
+        Checking any other branch would authorise one venue and act on another,
+        so a query value that disagrees with the body is refused rather than
+        preferred. The body is already buffered by the time dependencies run;
+        reading it again costs nothing.
+        """
+        try:
+            body = await request.json()
+        except ValueError:
+            return raw
+        from_body = body.get("venue_id") if isinstance(body, dict) else None
+        if not isinstance(from_body, int | str):
+            return raw
+        if raw is not None and int(raw) != int(from_body):
+            raise ValidationFailedError(
+                "So'rovdagi `venue_id` qiymatlari bir-biriga mos emas",
+                details={"permission": self.slug},
+            )
+        return from_body
 
 
 class GroupPermissionRequired:
@@ -335,7 +347,7 @@ class GroupPermissionRequired:
         return user
 
 
-def require_permission(slug: str) -> params.Depends:
+def require_permission(slug: str, *, venue_in_body: bool = False) -> params.Depends:
     """`Depends` around `PermissionRequired`, usable two ways.
 
     In a signature it hands back the caller:
@@ -344,8 +356,11 @@ def require_permission(slug: str) -> params.Depends:
 
     In `dependencies=[...]` it just guards, for the routes that never need the
     user. Both resolve the same object, so there is one guard, not two shapes.
+
+    `venue_in_body=True` is for a route whose payload names the branch it acts
+    on; the guard then checks that branch instead of demanding a query copy.
     """
-    guard: params.Depends = Depends(PermissionRequired(slug))
+    guard: params.Depends = Depends(PermissionRequired(slug, venue_in_body=venue_in_body))
     return guard
 
 

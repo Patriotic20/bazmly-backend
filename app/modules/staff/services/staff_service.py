@@ -17,7 +17,6 @@ from app.modules.auth.enums import UserRole, UserStatus
 from app.modules.auth.models import User
 from app.modules.auth.repositories import UserRepository
 from app.modules.auth.schemas import UserListItem
-from app.modules.localization.repositories import DEFAULT_LANGUAGE_CODE, LanguageRepository
 from app.modules.staff.enums import StaffRoleScope
 from app.modules.staff.models import StaffInvitation, VenueStaff
 from app.modules.staff.repositories import (
@@ -52,7 +51,6 @@ class StaffService:
         self.permissions = PermissionRepository(session)
         self.invitations = StaffInvitationRepository(session)
         self.users = UserRepository(session)
-        self.languages = LanguageRepository(session)
 
     async def require_permission_in_transaction(
         self, user_id: int, venue_id: int, permission_slug: str
@@ -108,6 +106,11 @@ class StaffService:
             if candidate.venue_id is None:
                 return candidate
         raise PermissionDeniedError("Siz bu muassasada ishlamaysiz")
+
+    async def group_ids_for(self, user_id: int) -> set[int]:
+        """Every chain the person actively works in — the membership test behind
+        `VerifiedGroupId`."""
+        return {row.venue_group_id for row in await self.staff.list_for_user(user_id)}
 
     async def list_for_group(
         self,
@@ -220,16 +223,12 @@ class StaffService:
 
         user = await self.users.get_by_phone(phone)
         if user is None:
-            language = await self.languages.get_by_code(DEFAULT_LANGUAGE_CODE)
-            if language is None:
-                raise ValidationFailedError("Asosiy til sozlanmagan")
             names = invitation.full_name.split(" ", 1)
             user = await self.users.create(
                 User(
                     first_name=names[0],
                     last_name=names[1] if len(names) > 1 else "",
                     phone=phone,
-                    language_id=language.id,
                     role=UserRole.VENUE_STAFF,
                     status=UserStatus.ACTIVE,
                     must_change_password=False,

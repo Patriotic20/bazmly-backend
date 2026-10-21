@@ -1,6 +1,6 @@
 """Row builders for the repository tests.
 
-Reference data (languages, staff roles, permissions) is already in the database —
+Reference data (staff roles, permissions) is already in the database —
 the seed revision put it there — so these only build the per-test rows on top.
 
 Every factory flushes but never commits: the caller's transaction decides.
@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User, UserRole, UserStatus
 from app.modules.geo.models import District, Region
-from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuCategory,
     MenuItem,
@@ -42,11 +41,6 @@ from app.modules.venues.models import (
 
 def unique_suffix() -> str:
     return uuid.uuid4().hex[:10]
-
-
-async def get_language(session: AsyncSession, code: str = "uz") -> Language:
-    result = await session.execute(select(Language).where(Language.code == code))
-    return result.scalar_one()
 
 
 async def get_staff_role(session: AsyncSession, slug: str = "waiter") -> StaffRole:
@@ -75,12 +69,10 @@ async def make_district(session: AsyncSession) -> District:
 
 
 async def make_user(session: AsyncSession, role: str = UserRole.CUSTOMER) -> User:
-    language = await get_language(session)
     user = User(
         first_name="Test",
         last_name="User",
         phone=f"+9989{unique_suffix()[:9]}",
-        language_id=language.id,
         role=role,
         status=UserStatus.ACTIVE,
         must_change_password=False,

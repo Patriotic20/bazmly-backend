@@ -118,6 +118,17 @@ class BookingRead(ReadSchema):
     completed_at: datetime | None = None
 
 
+class VenueBookingRead(BookingRead):
+    """Muassasa ro'yxati va QR qayd uchun bron: stol raqami va filial nomi bilan.
+
+    Stollar taxtasi bronni stol raqami bo'yicha topadi, `table_id` bo'yicha emas —
+    raqam xodim zalda ko'radigan narsa.
+    """
+
+    venue_name: str
+    table_number: int | None = None
+
+
 class BookingOwnerDetail(ReadSchema):
     """Mijozning o'z broni — `qr_token` faqat shu javobda qaytariladi.
 

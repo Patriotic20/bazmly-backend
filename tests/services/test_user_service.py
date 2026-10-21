@@ -110,14 +110,10 @@ async def test_setting_a_name_promotes_pending_profile_to_active(
     """The second half of the registration state machine."""
     from app.modules.auth.schemas import UserProfileUpdate
 
-    # `users.language_id` survived the translation collapse: it is the account's UI
-    # language preference, which the frontend reads, not content localisation.
-    language = await factories.get_language(session)
     user = User(
         first_name="",
         last_name="",
         phone=f"+9989{factories.unique_suffix()[:9]}",
-        language_id=language.id,
         role="customer",
         status=UserStatus.PENDING_PROFILE,
         must_change_password=False,

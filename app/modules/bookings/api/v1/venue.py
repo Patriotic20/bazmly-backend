@@ -16,6 +16,7 @@ from app.modules.bookings.schemas import (
     BookingRead,
     CheckInRequest,
     SeatedSummary,
+    VenueBookingRead,
 )
 
 router = APIRouter(prefix="/v1/venue/bookings", tags=["venue:bookings"])
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/v1/venue/bookings", tags=["venue:bookings"])
 
 @router.get(
     "",
-    response_model=list[BookingRead],
+    response_model=list[VenueBookingRead],
     operation_id="venue_bookings_list_day",
     summary="Kutilayotgan mijozlar",
     description="Bitta filialning bitta kundagi bronlari.",
@@ -34,7 +35,7 @@ async def list_day(
     venue_id: Annotated[int, Query(ge=1)],
     day: Annotated[date, Query()],
     statuses: Annotated[list[BookingStatus] | None, Query()] = None,
-) -> Sequence[BookingRead]:
+) -> Sequence[VenueBookingRead]:
     return await service.venue_day(venue_id, day, statuses)
 
 
@@ -79,19 +80,20 @@ async def reject(
 
 @router.post(
     "/check-in",
-    response_model=BookingRead,
+    response_model=VenueBookingRead,
     operation_id="venue_bookings_check_in",
     summary="QR orqali qayd etish",
     description=(
         "Bir marta ishlatiladi: ikkinchi skan rad etiladi. Skanerlovchi shu "
-        "filialda ishlashi shart."
+        "filialda ishlashi shart. Filial so'rov tanasidagi `venue_id` dan olinadi; "
+        "query'da ham berilsa, ikkalasi bir xil bo'lishi kerak."
     ),
 )
 async def check_in(
     payload: CheckInRequest,
     service: BookingServiceDep,
-    user: Annotated[UserRead, require_permission("bookings.confirm")],
-) -> BookingRead:
+    user: Annotated[UserRead, require_permission("bookings.confirm", venue_in_body=True)],
+) -> VenueBookingRead:
     return await service.check_in_by_qr(user.id, payload.venue_id, payload.qr_token)
 
 

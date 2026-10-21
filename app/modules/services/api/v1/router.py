@@ -13,10 +13,14 @@ from app.modules.services.schemas import (
 from app.modules.services.services import VenueServiceCatalogService
 from app.modules.venues.enums import VenueTypeSlug
 
-router = APIRouter(prefix="/v1", tags=["services"])
+# Two routers, one file: the catalog is read by both apps, but setting a price
+# is staff work. Separate tags — not one router with per-operation overrides,
+# which FastAPI would merge into a double-tagged operation shown twice in Swagger.
+catalog_router = APIRouter(prefix="/v1", tags=["services"])
+venue_router = APIRouter(prefix="/v1", tags=["venue:services"])
 
 
-@router.get(
+@catalog_router.get(
     "/service-catalog",
     response_model=list[ServiceCatalogRead],
     operation_id="services_list_catalog",
@@ -30,7 +34,7 @@ async def list_catalog(
     return await VenueServiceCatalogService(session).list_catalog(venue_type)
 
 
-@router.post(
+@venue_router.post(
     "/venue/services",
     response_model=VenueServiceRead,
     status_code=status.HTTP_201_CREATED,
@@ -46,3 +50,8 @@ async def create_venue_service(
     group_id: Annotated[int, Query(ge=1)],
 ) -> VenueServiceRead:
     return await VenueServiceCatalogService(session).create(user.id, venue_id, group_id, payload)
+
+
+router = APIRouter()
+router.include_router(catalog_router)
+router.include_router(venue_router)

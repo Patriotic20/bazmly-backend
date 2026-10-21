@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
 from app.modules.menu.models import (
+    MenuCategory,
     MenuItem,
     MenuItemBranch,
     MenuItemStatus,
@@ -26,6 +27,8 @@ class MenuItemRow:
     description: str | None
     effective_price: Decimal | None
     is_available: bool
+    category_name: str = ""
+    price_from: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +66,25 @@ class MenuItemRepository:
         """Inner-joins `menu_item_branches`, so an unticked branch's dishes simply
         do not appear."""
         effective_price = func.coalesce(MenuItemBranch.price_override, MenuItem.base_price)
+        # A dish sold by portion has no price of its own; the card shows the
+        # cheapest portion as this branch prices it.
+        price_from = (
+            select(
+                func.min(func.coalesce(MenuItemVariantBranch.price_override, MenuItemVariant.price))
+            )
+            .select_from(MenuItemVariant)
+            .outerjoin(
+                MenuItemVariantBranch,
+                (MenuItemVariantBranch.variant_id == MenuItemVariant.id)
+                & (MenuItemVariantBranch.venue_id == venue_id),
+            )
+            .where(
+                MenuItemVariant.menu_item_id == MenuItem.id,
+                MenuItemVariant.is_active.is_(True),
+            )
+            .correlate(MenuItem)
+            .scalar_subquery()
+        )
 
         stmt = (
             select(
@@ -71,8 +93,11 @@ class MenuItemRepository:
                 MenuItem.description,
                 effective_price,
                 MenuItemBranch.is_available,
+                MenuCategory.name,
+                price_from,
             )
             .join(MenuItemBranch, MenuItemBranch.menu_item_id == MenuItem.id)
+            .join(MenuCategory, MenuCategory.id == MenuItem.menu_category_id)
             .where(
                 MenuItemBranch.venue_id == venue_id,
                 MenuItemBranch.is_available.is_(True),
@@ -83,7 +108,9 @@ class MenuItemRepository:
         if category_id is not None:
             stmt = stmt.where(MenuItem.menu_category_id == category_id)
 
-        result = await self.session.execute(stmt.order_by(MenuItem.sort_order, MenuItem.id))
+        result = await self.session.execute(
+            stmt.order_by(MenuCategory.sort_order, MenuItem.sort_order, MenuItem.id)
+        )
         return [
             MenuItemRow(
                 item=row[0],
@@ -91,6 +118,8 @@ class MenuItemRepository:
                 description=row[2],
                 effective_price=row[3],
                 is_available=bool(row[4]),
+                category_name=row[5] or "",
+                price_from=row[6],
             )
             for row in result.all()
         ]

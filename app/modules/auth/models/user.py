@@ -66,7 +66,6 @@ class User(IdIntPk, TimestampMixin, Base):
     # narrower column would start rejecting new users rather than old ones.
     telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    language_id: Mapped[int] = mapped_column(ForeignKey("languages.id"), nullable=False)
     district_id: Mapped[int | None] = mapped_column(ForeignKey("districts.id"), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default=UserRole.CUSTOMER, nullable=False)
     status: Mapped[str] = mapped_column(

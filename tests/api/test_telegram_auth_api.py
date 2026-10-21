@@ -41,13 +41,10 @@ def init_data(
     *,
     first_name: str = "Aziz",
     last_name: str | None = "Umarov",
-    language_code: str | None = None,
 ) -> str:
     user: dict[str, object] = {"id": telegram_id, "first_name": first_name}
     if last_name is not None:
         user["last_name"] = last_name
-    if language_code is not None:
-        user["language_code"] = language_code
 
     return sign(
         {
@@ -116,23 +113,6 @@ async def test_a_missing_surname_is_accepted(
     )
 
     assert response.status_code == 200
-
-
-async def test_the_interface_language_follows_telegram(
-    api_client: AsyncClient, session: AsyncSession, telegram_configured: None
-) -> None:
-    """`ru-RU` and `ru` mean the same row; an unknown code falls back to Uzbek."""
-    response = await api_client.post(
-        "/api/v1/auth/telegram", json={"init_data": init_data(444, language_code="ru-RU")}
-    )
-    assert response.status_code == 200
-
-    me = await api_client.get(
-        "/api/v1/users/me",
-        headers={"Authorization": f"Bearer {response.json()['access_token']}"},
-    )
-    language = await session.execute(select(User.language_id).where(User.telegram_id == 444))
-    assert me.json()["language_id"] == language.scalar_one()
 
 
 async def test_a_forged_payload_is_refused(

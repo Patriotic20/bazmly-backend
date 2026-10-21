@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.staff.models import VenueStaff
 from app.modules.venue_groups.models import VenueGroup
 from app.modules.venues.enums import VenueTypeSlug
-from app.modules.venues.models import VenueZone
+from app.modules.venues.models import VenueGuestTier, VenueWorkingHours, VenueZone
 from tests.api.conftest import auth_header
 from tests.repositories import factories
 
@@ -105,6 +105,48 @@ async def test_a_new_branch_is_born_with_two_zones(
         await session.execute(select(VenueZone).where(VenueZone.venue_id == venue_id))
     ).scalars()
     assert sorted(zone.slug for zone in zones) == ["ichkari", "tashqari"]
+
+
+async def test_a_new_branch_is_born_with_a_working_week(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """With no hours at all every booking is refused as `venue_closed`, and a
+    client with no hours screen has no way out of that."""
+    user = await factories.make_user(session)
+    created = await api_client.post(
+        "/api/v1/venue/groups",
+        json=await group_payload(session),
+        headers=auth_header(user.id),
+    )
+    venue_id = created.json()["branches"][0]["id"]
+
+    hours = (
+        await session.execute(
+            select(VenueWorkingHours).where(VenueWorkingHours.venue_id == venue_id)
+        )
+    ).scalars()
+    assert sorted((row.weekday, row.is_closed) for row in hours) == [
+        (weekday, False) for weekday in range(7)
+    ]
+
+
+async def test_a_new_toyxona_is_born_with_an_open_guest_band(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """A hall event cannot be stored without a band, and nothing in the API
+    creates one — without this no to'yxona could ever be booked."""
+    user = await factories.make_user(session)
+    created = await api_client.post(
+        "/api/v1/venue/groups",
+        json=await group_payload(session),
+        headers=auth_header(user.id),
+    )
+    venue_id = created.json()["branches"][0]["id"]
+
+    [tier] = (
+        await session.execute(select(VenueGuestTier).where(VenueGuestTier.venue_id == venue_id))
+    ).scalars()
+    assert (tier.min_guests, tier.max_guests) == (1, None)
 
 
 async def test_reads_return_the_real_name(api_client: AsyncClient, session: AsyncSession) -> None:

@@ -64,12 +64,20 @@ class BranchAvailabilityUpdate(BaseModel):
 
 
 class MenuItemListItem(ReadSchema):
-    """Menyu katakchasi. `effective_price` filial narxi bilan hisoblangan."""
+    """Menyu katakchasi. `effective_price` filial narxi bilan hisoblangan.
+
+    Porsiyalab sotiladigan taomning o'z narxi yo'q — `price_from` eng arzon
+    porsiyaning shu filialdagi narxi.
+    """
 
     id: int
+    menu_category_id: int
+    category_name: str
     name: str
+    description: str | None = None
     photo_url: str | None = None
     effective_price: Money | None = None
+    price_from: Money | None = None
     currency: str
     discount_percent: Decimal | None = None
     has_variants: bool

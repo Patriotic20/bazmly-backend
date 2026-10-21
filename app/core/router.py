@@ -18,7 +18,6 @@ from app.modules.bookings.api import router as bookings_router
 from app.modules.catalog.api import router as catalog_router
 from app.modules.engagement.api import router as engagement_router
 from app.modules.geo.api import router as geo_router
-from app.modules.localization.api import router as localization_router
 from app.modules.menu.api import router as menu_router
 from app.modules.orders.api import router as orders_router
 from app.modules.reviews.api import router as reviews_router
@@ -62,7 +61,6 @@ async def health() -> dict[str, Any]:
 
 
 for module_router in (
-    localization_router,
     geo_router,
     catalog_router,
     auth_router,

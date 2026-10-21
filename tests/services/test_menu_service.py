@@ -6,6 +6,8 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
+from app.modules.menu.models import MenuCategory
+from app.modules.menu.schemas import MenuItemCreate
 from app.modules.menu.services import MenuService
 from tests.repositories import factories
 
@@ -79,3 +81,28 @@ async def test_list_items_omits_dishes_the_branch_does_not_serve(
     assert served.id in ids
     assert unticked.id not in ids
     assert next(row for row in rows if row.id == served.id).effective_price == OVERRIDE
+
+
+async def test_a_new_dish_is_served_at_the_branch_it_was_created_from(
+    session: AsyncSession,
+) -> None:
+    """The create used to commit the dish and then read it back through a branch
+    that did not serve it yet — a 404 on success, and a dish that never showed up
+    on the menu it was added from."""
+    group = await factories.make_venue_group(session)
+    venue = await factories.make_venue(session, group=group)
+    employment = await factories.make_staff(session, venue, group, "manager")
+    category = MenuCategory(venue_group_id=group.id, name="Taomlar", sort_order=0, is_active=True)
+    session.add(category)
+    await session.flush()
+
+    service = MenuService(session)
+    created = await service.create_item(
+        employment.user_id,
+        venue.id,
+        MenuItemCreate(menu_category_id=category.id, name="Lag'mon", base_price=BASE_PRICE),
+    )
+
+    assert created.effective_price == BASE_PRICE
+    listed = await service.list_items(venue.id, None)
+    assert [item.id for item in listed] == [created.id]

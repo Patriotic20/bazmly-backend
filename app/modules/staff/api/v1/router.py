@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, status
 
-from app.core.dependencies import CurrentUser, require_permission
+from app.core.dependencies import CurrentUser, VerifiedGroupId, require_permission
 from app.modules.auth.schemas import UserRead
 from app.modules.staff.api.dependencies import StaffServiceDep
 from app.modules.staff.schemas import (
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/v1/venue/staff", tags=["venue:staff"])
 async def list_staff(
     user: CurrentUser,
     service: StaffServiceDep,
-    group_id: Annotated[int, Query(ge=1)],
+    group_id: VerifiedGroupId,
     venue_id: Annotated[int | None, Query(ge=1)] = None,
     role_id: Annotated[int | None, Query(ge=1)] = None,
     is_active: Annotated[bool | None, Query()] = None,
@@ -49,7 +49,7 @@ async def list_staff(
 async def staff_counts(
     user: CurrentUser,
     service: StaffServiceDep,
-    group_id: Annotated[int, Query(ge=1)],
+    group_id: VerifiedGroupId,
 ) -> StaffCountsRead:
     return await service.counts(group_id)
 

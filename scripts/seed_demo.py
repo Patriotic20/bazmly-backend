@@ -1,6 +1,6 @@
 """Demo data for a local database.
 
-Reference data — languages, staff roles, permissions, the service catalogue,
+Reference data — staff roles, permissions, the service catalogue,
 amenities, and every Uzbek region and district — is seeded by migrations. This
 script writes the *demo* layer on top of it: people, chains, branches, zones,
 tables, menus, services, bookings, orders and reviews, so that a freshly
@@ -42,7 +42,6 @@ from app.modules.bookings.models import (
 from app.modules.catalog.models import Amenity
 from app.modules.engagement.models import Favorite
 from app.modules.geo.models import District, Region
-from app.modules.localization.models import Language
 from app.modules.menu.models import (
     MenuCategory,
     MenuItem,
@@ -90,6 +89,16 @@ DEMO_PASSWORD = "demo1234"
 
 PHOTO_BASE = "https://picsum.photos/seed"
 
+# Pictures the frontend ships under `public/`. Root-relative, so they resolve
+# against whichever origin serves the client — demo rows only, never real ones.
+RESTAURANT_PHOTOS = [f"/images/home/rest{n}.png" for n in range(1, 7)]
+HALL_PHOTOS = ["/images/home/top.png"] + [f"/images/home/tuyxona{n}.png" for n in range(1, 5)]
+DISH_PHOTOS = [f"/images/home/food{n}.png" for n in range(1, 5)]
+
+
+def _rotate(pool: Sequence[str], start: int, count: int) -> list[str]:
+    return [pool[(start + offset) % len(pool)] for offset in range(count)]
+
 
 def _phone(index: int) -> str:
     return f"+9989000{index:05d}"
@@ -97,11 +106,6 @@ def _phone(index: int) -> str:
 
 async def _reset(session: AsyncSession) -> None:
     await session.execute(text(f"TRUNCATE {', '.join(DEMO_TABLES)} RESTART IDENTITY CASCADE"))
-
-
-async def _by_code(session: AsyncSession) -> dict[str, Language]:
-    result = await session.execute(select(Language))
-    return {language.code: language for language in result.scalars()}
 
 
 async def _districts(session: AsyncSession) -> dict[tuple[str, str], District]:
@@ -133,7 +137,6 @@ async def _make_user(
     index: int,
     first_name: str,
     last_name: str,
-    language: Language,
     role: UserRole,
     password_hash: str,
     district: District | None = None,
@@ -146,7 +149,6 @@ async def _make_user(
         last_name=last_name,
         phone=_phone(index),
         email=email,
-        language_id=language.id,
         district_id=district.id if district else None,
         role=role,
         status=UserStatus.ACTIVE,
@@ -210,12 +212,12 @@ async def _make_tables(
     return tables
 
 
-async def _make_photos(session: AsyncSession, venue: Venue, count: int) -> None:
-    for order in range(count):
+async def _make_photos(session: AsyncSession, venue: Venue, urls: Sequence[str]) -> None:
+    for order, url in enumerate(urls):
         session.add(
             VenuePhoto(
                 venue_id=venue.id,
-                url=f"{PHOTO_BASE}/venue-{venue.id}-{order}/1200/800",
+                url=url,
                 sort_order=order,
                 is_cover=order == 0,
             )
@@ -278,6 +280,69 @@ async def _make_venue(
     session.add(venue)
     await session.flush()
     return venue
+
+
+async def _make_hall_services(
+    session: AsyncSession, group: VenueGroup, catalog: dict[str, ServiceCatalog]
+) -> VenueService:
+    """A to'yxona chain's price list. Returns the per-guest catering service,
+    which the demo hall bookings are priced with."""
+    dasturxon = VenueService(
+        venue_group_id=group.id,
+        venue_id=None,
+        service_catalog_id=catalog["dasturxon_tuzash"].id,
+        price=Decimal("85000.00"),
+        currency="UZS",
+        price_unit=ServicePriceUnit.PER_GUEST,
+        is_active=True,
+        sort_order=1,
+    )
+    session.add(dasturxon)
+    await session.flush()
+
+    for order, (item_name, item_price) in enumerate(
+        [
+            ("Osh", Decimal("35000.00")),
+            ("Norin", Decimal("28000.00")),
+            ("Somsa", Decimal("12000.00")),
+            ("Mevalar to'plami", Decimal("18000.00")),
+            ("Shirinliklar to'plami", Decimal("15000.00")),
+        ],
+        start=1,
+    ):
+        session.add(
+            VenueServiceItem(
+                venue_service_id=dasturxon.id,
+                name=item_name,
+                price=item_price,
+                sort_order=order,
+            )
+        )
+
+    for order, (slug, price, unit) in enumerate(
+        [
+            ("raqqoslar", Decimal("3500000.00"), ServicePriceUnit.FLAT),
+            ("qoshiqchi", Decimal("8000000.00"), ServicePriceUnit.FLAT),
+            ("video", Decimal("5500000.00"), ServicePriceUnit.FLAT),
+            ("sahna", Decimal("2500000.00"), ServicePriceUnit.FLAT),
+            ("kartej", Decimal("4000000.00"), ServicePriceUnit.FLAT),
+        ],
+        start=2,
+    ):
+        session.add(
+            VenueService(
+                venue_group_id=group.id,
+                venue_id=None,
+                service_catalog_id=catalog[slug].id,
+                price=price,
+                currency="UZS",
+                price_unit=unit,
+                is_active=True,
+                sort_order=order,
+            )
+        )
+    await session.flush()
+    return dasturxon
 
 
 async def _make_booking(
@@ -353,13 +418,10 @@ async def seed(session: AsyncSession) -> None:
     """Write the whole demo layer. One transaction — the caller commits."""
     await _reset(session)
 
-    languages = await _by_code(session)
     districts = await _districts(session)
     amenities = await _amenities(session)
     catalog = await _service_catalog(session)
     roles = await _staff_roles(session)
-
-    uz, ru, en = languages["uz"], languages["ru"], languages["en"]
 
     # Hashed once and shared: PBKDF2 at 240k rounds costs ~0.1s, and a demo
     # account gains nothing from a per-user salt.
@@ -378,7 +440,6 @@ async def seed(session: AsyncSession) -> None:
         index=1,
         first_name="Admin",
         last_name="Adminov",
-        language=uz,
         role=UserRole.ADMIN,
         password_hash=password_hash,
         email="admin@bazfind.uz",
@@ -390,7 +451,6 @@ async def seed(session: AsyncSession) -> None:
         index=2,
         first_name="Malika",
         last_name="Yusupova",
-        language=uz,
         role=UserRole.MODERATOR,
         password_hash=password_hash,
         email="moderator@bazfind.uz",
@@ -402,7 +462,6 @@ async def seed(session: AsyncSession) -> None:
         index=11,
         first_name="Sardor",
         last_name="Rasulov",
-        language=uz,
         role=UserRole.VENUE_OWNER,
         password_hash=password_hash,
         district=chilonzor,
@@ -413,7 +472,6 @@ async def seed(session: AsyncSession) -> None:
         index=12,
         first_name="Nodira",
         last_name="Karimova",
-        language=ru,
         role=UserRole.VENUE_OWNER,
         password_hash=password_hash,
         district=samarqand,
@@ -424,11 +482,20 @@ async def seed(session: AsyncSession) -> None:
         index=13,
         first_name="Jasur",
         last_name="Toshmatov",
-        language=uz,
         role=UserRole.VENUE_OWNER,
         password_hash=password_hash,
         district=sirgali,
         email="jasur@zarafshon.uz",
+    )
+    dilnoza = await _make_user(
+        session,
+        index=14,
+        first_name="Dilnoza",
+        last_name="Saidova",
+        role=UserRole.VENUE_OWNER,
+        password_hash=password_hash,
+        district=yunusobod,
+        email="dilnoza@shohona.uz",
     )
 
     customers = [
@@ -437,20 +504,19 @@ async def seed(session: AsyncSession) -> None:
             index=101 + offset,
             first_name=first_name,
             last_name=last_name,
-            language=language,
             role=UserRole.CUSTOMER,
             password_hash=password_hash,
             district=district,
             theme=theme,
         )
-        for offset, (first_name, last_name, language, district, theme) in enumerate(
+        for offset, (first_name, last_name, district, theme) in enumerate(
             [
-                ("Aziz", "Umarov", uz, chilonzor, UserTheme.SYSTEM),
-                ("Kamola", "Tursunova", uz, yunusobod, UserTheme.LIGHT),
-                ("Dilshod", "Ergashev", ru, mirzo_ulugbek, UserTheme.DARK),
-                ("Sevara", "Nazarova", en, yashnobod, UserTheme.SYSTEM),
-                ("Bekzod", "Olimov", uz, sirgali, UserTheme.LIGHT),
-                ("Zilola", "Hakimova", ru, samarqand, UserTheme.SYSTEM),
+                ("Aziz", "Umarov", chilonzor, UserTheme.SYSTEM),
+                ("Kamola", "Tursunova", yunusobod, UserTheme.LIGHT),
+                ("Dilshod", "Ergashev", mirzo_ulugbek, UserTheme.DARK),
+                ("Sevara", "Nazarova", yashnobod, UserTheme.SYSTEM),
+                ("Bekzod", "Olimov", sirgali, UserTheme.LIGHT),
+                ("Zilola", "Hakimova", samarqand, UserTheme.SYSTEM),
             ]
         )
     ]
@@ -483,7 +549,16 @@ async def seed(session: AsyncSession) -> None:
         name="Zarafshon To'yxonalari",
         description="To'y va katta tadbirlar uchun zallar.",
     )
-    session.add_all([bahor, registon, zarafshon])
+    shohona = VenueGroup(
+        owner_id=dilnoza.id,
+        primary_venue_type=VenueTypeSlug.TOYXONA,
+        logo_url=HALL_PHOTOS[0],
+        default_currency="UZS",
+        status=VenueGroupStatus.ACTIVE,
+        name="Shohona Saroylari",
+        description="Toshkentning to'rt tumanidagi zamonaviy to'y saroylari.",
+    )
+    session.add_all([bahor, registon, zarafshon, shohona])
     await session.flush()
 
     # --- branches -------------------------------------------------------------
@@ -589,18 +664,119 @@ async def seed(session: AsyncSession) -> None:
     )
 
     restaurants = [bahor_chilonzor, bahor_yunusobod, registon_toshkent, registon_samarqand]
-    halls = [zarafshon_sirgali, zarafshon_yashnobod]
+    shohona_halls = [
+        await _make_venue(
+            session,
+            group=shohona,
+            district=district,
+            name=name,
+            venue_type=VenueTypeSlug.TOYXONA,
+            street=street,
+            house_number=house,
+            latitude=lat,
+            longitude=lng,
+            phone=phone,
+            description=description,
+            tagline=tagline,
+            capacity_min=capacity_min,
+            capacity_max=capacity_max,
+            base_price=Decimal(price),
+            requires_deposit=True,
+            deposit_percent=Decimal("20.00"),
+            discount_percent=Decimal(discount) if discount else None,
+        )
+        for (
+            district,
+            name,
+            street,
+            house,
+            lat,
+            lng,
+            phone,
+            description,
+            tagline,
+            capacity_min,
+            capacity_max,
+            price,
+            discount,
+        ) in [
+            (
+                yunusobod,
+                "Sayqal To'yxonasi",
+                "Amir Temur shoh ko'chasi",
+                "151",
+                "41.365200",
+                "69.287100",
+                "+998712001107",
+                "Ikki qavatli saroy: katta zal 800 kishigacha, kichik zal nikoh "
+                "marosimlari uchun. Jonli musiqa uchun sahna va yorug'lik tizimi.",
+                "Hashamatli marosimlar saroyi",
+                300,
+                800,
+                "25000000.00",
+                "10.00",
+            ),
+            (
+                chilonzor,
+                "Tinchlik Saroyi",
+                "Qatortol ko'chasi",
+                "60",
+                "41.287400",
+                "69.214300",
+                "+998712001108",
+                "Oilaviy to'ylar va yubileylar uchun shinam zal, o'z oshxonasi bilan.",
+                "Oilaviy to'ylar uchun",
+                150,
+                450,
+                "18000000.00",
+                None,
+            ),
+            (
+                mirzo_ulugbek,
+                "Panorama Hall",
+                "Mustaqillik shoh ko'chasi",
+                "88",
+                "41.326900",
+                "69.311500",
+                "+998712001109",
+                "Shahar manzarasi ochiladigan panoramali zal, korporativ tadbirlar "
+                "va to'ylar uchun.",
+                "Shahar manzarasi bilan",
+                200,
+                600,
+                "30000000.00",
+                "5.00",
+            ),
+            (
+                yashnobod,
+                "Sharqona To'yxonasi",
+                "Parkent ko'chasi",
+                "17",
+                "41.311800",
+                "69.340600",
+                "+998712001110",
+                "Sharqona uslubdagi bezaklar, milliy dasturxon va keng avtoturargoh.",
+                "Milliy uslubda",
+                250,
+                700,
+                "22000000.00",
+                None,
+            ),
+        ]
+    ]
+
+    halls = [zarafshon_sirgali, zarafshon_yashnobod, *shohona_halls]
 
     # --- working hours, zones, tables, photos, amenities ----------------------
-    for venue in restaurants:
+    for offset, venue in enumerate(restaurants):
         await _make_working_hours(session, venue, time(10, 0), time(23, 0), closed_weekday=None)
         zones = await _make_zones(session, venue)
         await _make_tables(session, venue, zones, [2, 2, 4, 4, 4, 4, 6, 6, 6, 8, 8, 10])
-        await _make_photos(session, venue, 3)
+        await _make_photos(session, venue, _rotate(RESTAURANT_PHOTOS, offset, 4))
 
-    for venue in halls:
+    for offset, venue in enumerate(halls):
         await _make_working_hours(session, venue, time(11, 0), time(23, 30), closed_weekday=0)
-        await _make_photos(session, venue, 4)
+        await _make_photos(session, venue, _rotate(HALL_PHOTOS, offset, 4))
 
     venue_amenities = {
         bahor_chilonzor.id: ["parking", "wifi", "air_conditioning", "professional_kitchen"],
@@ -609,6 +785,10 @@ async def seed(session: AsyncSession) -> None:
         registon_samarqand.id: ["parking", "air_conditioning", "professional_kitchen"],
         zarafshon_sirgali.id: ["parking", "sound_system", "stage", "air_conditioning"],
         zarafshon_yashnobod.id: ["parking", "sound_system", "stage"],
+        **{
+            hall.id: ["parking", "sound_system", "stage", "air_conditioning", "wifi"]
+            for hall in shohona_halls
+        },
     }
     for venue_id, slugs in venue_amenities.items():
         for slug in slugs:
@@ -620,6 +800,16 @@ async def seed(session: AsyncSession) -> None:
     for venue, prices in (
         (zarafshon_sirgali, ["45000000.00", "58000000.00", "72000000.00", "95000000.00"]),
         (zarafshon_yashnobod, ["28000000.00", "36000000.00", "45000000.00", "60000000.00"]),
+        *(
+            (
+                hall,
+                [
+                    str((hall.base_price or Decimal("0")) * Decimal(factor))
+                    for factor in ("1.00", "1.25", "1.55", "2.00")
+                ],
+            )
+            for hall in shohona_halls
+        ),
     ):
         bands: list[tuple[int, int | None]] = [(100, 150), (150, 200), (200, 300), (300, None)]
         rows = [
@@ -639,61 +829,8 @@ async def seed(session: AsyncSession) -> None:
         tiers[venue.id] = rows
 
     # --- chain services -------------------------------------------------------
-    dasturxon = VenueService(
-        venue_group_id=zarafshon.id,
-        venue_id=None,
-        service_catalog_id=catalog["dasturxon_tuzash"].id,
-        price=Decimal("85000.00"),
-        currency="UZS",
-        price_unit=ServicePriceUnit.PER_GUEST,
-        is_active=True,
-        sort_order=1,
-    )
-    session.add(dasturxon)
-    await session.flush()
-
-    for order, (item_name, item_price) in enumerate(
-        [
-            ("Osh", Decimal("35000.00")),
-            ("Norin", Decimal("28000.00")),
-            ("Somsa", Decimal("12000.00")),
-            ("Mevalar to'plami", Decimal("18000.00")),
-            ("Shirinliklar to'plami", Decimal("15000.00")),
-        ],
-        start=1,
-    ):
-        session.add(
-            VenueServiceItem(
-                venue_service_id=dasturxon.id,
-                name=item_name,
-                price=item_price,
-                sort_order=order,
-            )
-        )
-
-    for order, (slug, price, unit) in enumerate(
-        [
-            ("raqqoslar", Decimal("3500000.00"), ServicePriceUnit.FLAT),
-            ("qoshiqchi", Decimal("8000000.00"), ServicePriceUnit.FLAT),
-            ("video", Decimal("5500000.00"), ServicePriceUnit.FLAT),
-            ("sahna", Decimal("2500000.00"), ServicePriceUnit.FLAT),
-            ("kartej", Decimal("4000000.00"), ServicePriceUnit.FLAT),
-        ],
-        start=2,
-    ):
-        session.add(
-            VenueService(
-                venue_group_id=zarafshon.id,
-                venue_id=None,
-                service_catalog_id=catalog[slug].id,
-                price=price,
-                currency="UZS",
-                price_unit=unit,
-                is_active=True,
-                sort_order=order,
-            )
-        )
-    await session.flush()
+    dasturxon = await _make_hall_services(session, zarafshon, catalog)
+    await _make_hall_services(session, shohona, catalog)
 
     # --- menus ----------------------------------------------------------------
     menu_by_group: dict[int, list[MenuItem]] = {}
@@ -761,7 +898,7 @@ async def seed(session: AsyncSession) -> None:
                     menu_category_id=category.id,
                     base_price=Decimal(base_price) if base_price else None,
                     currency="UZS",
-                    photo_url=f"{PHOTO_BASE}/dish-{group_id}-{category_order}-{item_order}/600/400",
+                    photo_url=DISH_PHOTOS[(category_order + item_order) % len(DISH_PHOTOS)],
                     is_available=True,
                     sort_order=item_order,
                     has_variants=base_price is None,
@@ -837,7 +974,6 @@ async def seed(session: AsyncSession) -> None:
                 index=staff_index,
                 first_name=first_name,
                 last_name=last_name,
-                language=uz,
                 role=UserRole.VENUE_STAFF,
                 password_hash=password_hash,
                 login=f"bz{role_slug[:4]}{staff_index}",
@@ -860,7 +996,7 @@ async def seed(session: AsyncSession) -> None:
         staff_by_venue[venue.id] = venue_staff
 
     # Owners hold a group-scoped employment row with no branch.
-    for group in (bahor, registon, zarafshon):
+    for group in (bahor, registon, zarafshon, shohona):
         owner_role = roles["owner"]
         session.add(
             VenueStaff(
@@ -1071,6 +1207,12 @@ async def seed(session: AsyncSession) -> None:
         (bahor_chilonzor, customers[3], 4, "Terrasa yoqdi, narxlar o'rtacha."),
         (registon_toshkent, customers[4], 5, "Tandir go'sht bo'yicha eng yaxshi joy."),
         (zarafshon_sirgali, customers[5], 4, "Avtoturargoh kichikroq, qolgani yaxshi."),
+        (shohona_halls[0], customers[0], 5, "Zal juda chiroyli, xizmat yuqori darajada."),
+        (shohona_halls[0], customers[1], 5, "To'yimiz a'lo o'tdi, hammaga tavsiya qilaman."),
+        (shohona_halls[1], customers[2], 4, "Oshxonasi mazali, zal biroz kichikroq."),
+        (shohona_halls[2], customers[3], 5, "Manzarasi ajoyib, mehmonlar xursand bo'lishdi."),
+        (shohona_halls[2], customers[4], 4, "Narxi biroz qimmat, lekin arziydi."),
+        (shohona_halls[3], customers[5], 5, "Milliy uslubdagi bezaklar juda yoqdi."),
     ]
     for venue, user, rating, comment in unverified:
         session.add(
@@ -1114,7 +1256,7 @@ async def seed(session: AsyncSession) -> None:
     await session.flush()
 
     print(f"admin       {admin.phone} / {DEMO_PASSWORD}")
-    print(f"owners      {sardor.phone}, {nodira.phone}, {jasur.phone}")
+    print(f"owners      {sardor.phone}, {nodira.phone}, {jasur.phone}, {dilnoza.phone}")
     print(f"customers   {customers[0].phone} .. {customers[-1].phone}")
     print(f"venues      {len(restaurants) + len(halls)}")
     print(f"bookings    {len(bookings)}")

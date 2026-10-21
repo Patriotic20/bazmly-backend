@@ -17,7 +17,6 @@ class UserCreate(BaseModel):
     last_name: str = Field(min_length=1, max_length=100)
     phone: PhoneNumber | None = None
     email: str | None = None
-    language_id: int
     district_id: int | None = None
 
 
@@ -28,7 +27,6 @@ class UserProfileUpdate(UpdateSchema):
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = None
     avatar_url: str | None = None
-    language_id: int | None = None
     district_id: int | None = None
     theme: UserTheme | None = None
 
@@ -42,7 +40,6 @@ class UserRead(ReadSchema):
     phone: str | None = None
     email: str | None = None
     avatar_url: str | None = None
-    language_id: int
     district_id: int | None = None
     role: UserRole
     status: UserStatus

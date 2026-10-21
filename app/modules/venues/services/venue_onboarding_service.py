@@ -1,3 +1,6 @@
+from datetime import time
+from decimal import Decimal
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,9 +23,10 @@ from app.modules.venue_groups.schemas import (
     VenueGroupWithBranchCreate,
     VenueGroupWithBranchesRead,
 )
-from app.modules.venues.enums import VenueStatus
-from app.modules.venues.models import Venue, VenueWorkingHours, VenueZone
+from app.modules.venues.enums import VenueStatus, VenueTypeSlug
+from app.modules.venues.models import Venue, VenueGuestTier, VenueWorkingHours, VenueZone
 from app.modules.venues.repositories import (
+    VenueGuestTierRepository,
     VenueRepository,
     VenueWorkingHoursRepository,
     VenueZoneRepository,
@@ -53,6 +57,18 @@ DEFAULT_ZONES: tuple[tuple[str, str, int], ...] = (
     ("tashqari", "Tashqari", 2),
 )
 
+# A week the branch is born with, until the owner sets its own. With no rows at
+# all every booking is refused as `venue_closed`, and a client without an hours
+# screen has no way to fix that. `PUT .../working-hours` replaces all seven.
+DEFAULT_OPENS_AT = time(9, 0)
+DEFAULT_CLOSES_AT = time(23, 0)
+
+# A to'yxona is booked by guest-count band, and a hall event cannot be stored
+# without one (`guest_tier_id` is NOT NULL for `hall_event`). Nothing in the API
+# creates bands yet, so a branch is born with a single open band priced at its
+# own `base_price` — or nothing, when it gave none.
+DEFAULT_TIER_MIN_GUESTS = 1
+
 
 class VenueOnboardingService:
     """The multi-step owner wizard, and the only place a branch is born.
@@ -72,6 +88,7 @@ class VenueOnboardingService:
         self.session = session
         self.venues = VenueRepository(session)
         self.hours = VenueWorkingHoursRepository(session)
+        self.tiers = VenueGuestTierRepository(session)
         self.groups = VenueGroupRepository(session)
         self.zones = VenueZoneRepository(session)
         self.districts = DistrictRepository(session)
@@ -225,13 +242,38 @@ class VenueOnboardingService:
     async def _attach_branch_details_in_transaction(
         self, venue_id: int, payload: VenueCreate
     ) -> None:
-        """Amenities and the two default zones. No commit — the caller owns it.
+        """Amenities, the two default zones, a default week and — for a to'yxona —
+        a default guest band. No commit — the caller owns it.
 
         The venue type used to be attached here as a `venue_venue_types` row; it is
         a column on the branch itself now, written by `_build_branch`.
         """
         if payload.amenity_ids:
             await self.amenities.set_for_venue(venue_id, payload.amenity_ids)
+
+        await self.hours.replace_all(
+            venue_id,
+            [
+                VenueWorkingHours(
+                    weekday=weekday,
+                    opens_at=DEFAULT_OPENS_AT,
+                    closes_at=DEFAULT_CLOSES_AT,
+                    is_closed=False,
+                )
+                for weekday in range(7)
+            ],
+        )
+
+        if payload.venue_type == VenueTypeSlug.TOYXONA:
+            await self.tiers.create(
+                VenueGuestTier(
+                    venue_id=venue_id,
+                    min_guests=DEFAULT_TIER_MIN_GUESTS,
+                    max_guests=None,
+                    base_price=payload.base_price or Decimal("0"),
+                    sort_order=0,
+                )
+            )
 
         for slug, name, sort_order in DEFAULT_ZONES:
             await self.zones.create(

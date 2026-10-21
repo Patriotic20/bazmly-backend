@@ -20,7 +20,6 @@ WORKDIR /app
 
 # Dependencies resolve from pyproject.toml + uv.lock before the application is
 # copied in, so editing code does not reinstall them: the layer above is reused.
-# That is where nearly all of the rebuild saving comes from.
 #
 # There is deliberately no BuildKit cache mount. Railway's builder demands an
 # `id` on one, and then demands that the id carry a prefix naming the service --
@@ -30,11 +29,13 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-install-project --no-dev
 
 COPY alembic.ini ./
+COPY docker/ ./docker/
 COPY app/ ./app/
 
 RUN uv sync --locked --no-dev
 
-RUN groupadd --system --gid 1000 app \
+RUN chmod +x /app/docker/entrypoint.sh \
+    && groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --no-create-home app \
     && chown -R app:app /app
 
@@ -42,11 +43,11 @@ USER app
 
 EXPOSE 8000
 
+# The entrypoint runs `alembic upgrade head` (on a fresh database that is what
+# creates the extensions the schema needs), then hands off to the command.
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
+
 # Shell form, because $PORT has to be expanded at run time: Railway assigns the
 # port rather than letting the service choose one, and the fallback keeps a
-# plain `docker run` working.
-#
-# Migrations run here rather than in an entrypoint script so that the whole
-# start sequence is visible in one place — and on a fresh database this is what
-# creates the postgis, btree_gist and pg_trgm extensions the schema needs.
-CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# plain `docker run` working. docker compose overrides this with a fixed port.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

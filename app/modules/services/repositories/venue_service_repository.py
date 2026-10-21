@@ -80,6 +80,19 @@ class VenueServiceRepository:
         )
         return VenueServiceWithItems(service=service, items=result.scalars().all())
 
+    async def catalog_name(self, service: VenueService) -> str:
+        """The name a guest sees for this service — the catalogue's, like the list."""
+        result = await self.session.execute(
+            select(ServiceCatalog.name, ServiceCatalog.slug).where(
+                ServiceCatalog.id == service.service_catalog_id
+            )
+        )
+        row = result.one_or_none()
+        if row is None:
+            return f"#{service.id}"
+        name: str = row[0] or row[1]
+        return name
+
     async def create(self, service: VenueService) -> VenueService:
         self.session.add(service)
         await self.session.flush()

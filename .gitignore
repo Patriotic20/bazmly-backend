@@ -6,11 +6,8 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments, and the toolchain the Railway build lays down beside
-# them — see nixpacks.toml for why those live under the project directory.
+# Virtual environments
 .venv
-.uv/
-.uv-python/
 
 # Local environment overrides — .env.template IS committed, .env is not.
 .env

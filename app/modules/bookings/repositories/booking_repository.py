@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import date as date_type
 from datetime import datetime, time
 
-from sqlalchemy import select, update
+from sqlalchemy import Row, Select, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.bookings.models import (
@@ -35,6 +35,15 @@ class UserBookingRow:
     venue: Venue
     venue_name: str
     table: VenueTable | None
+
+
+@dataclass(frozen=True, slots=True)
+class VenueBookingRow:
+    """A booking as staff see it: with the branch name and the table's number."""
+
+    booking: Booking
+    venue_name: str
+    table_number: int | None
 
 
 class BookingRepository:
@@ -110,6 +119,42 @@ class BookingRepository:
             stmt = stmt.where(Booking.status.in_(statuses))
         result = await self.session.execute(stmt.order_by(Booking.start_time, Booking.id))
         return result.scalars().all()
+
+    async def list_rows_for_venue_day(
+        self,
+        venue_id: int,
+        booking_date: date_type,
+        statuses: Sequence[str] | None = None,
+    ) -> Sequence[VenueBookingRow]:
+        """`list_for_venue_day` with the labels the staff screens print."""
+        stmt = self._venue_row_select().where(
+            Booking.venue_id == venue_id, Booking.booking_date == booking_date
+        )
+        if statuses:
+            stmt = stmt.where(Booking.status.in_(statuses))
+        result = await self.session.execute(stmt.order_by(Booking.start_time, Booking.id))
+        return [self._venue_row(row) for row in result.all()]
+
+    async def get_venue_row(self, booking_id: int) -> VenueBookingRow | None:
+        result = await self.session.execute(
+            self._venue_row_select().where(Booking.id == booking_id)
+        )
+        row = result.one_or_none()
+        return self._venue_row(row) if row is not None else None
+
+    @staticmethod
+    def _venue_row_select() -> Select[tuple[Booking, str, int]]:
+        # The outer join makes the number None for a hall event; SQLAlchemy types
+        # the column by its declaration and cannot know that.
+        return (
+            select(Booking, Venue.name, VenueTable.number)
+            .join(Venue, Venue.id == Booking.venue_id)
+            .outerjoin(VenueTable, VenueTable.id == Booking.table_id)
+        )
+
+    @staticmethod
+    def _venue_row(row: Row[tuple[Booking, str, int]]) -> VenueBookingRow:
+        return VenueBookingRow(booking=row[0], venue_name=row[1] or "", table_number=row[2])
 
     async def find_overlapping(
         self,

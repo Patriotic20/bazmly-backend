@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -7,13 +6,6 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User, UserStatus
-from app.modules.localization.models import Language
-
-
-@dataclass(frozen=True, slots=True)
-class UserWithLanguage:
-    user: User
-    language: Language
 
 
 class UserRepository:
@@ -57,17 +49,6 @@ class UserRepository:
             select(User).where(User.login == login, User.deleted_at.is_(None))
         )
         return result.scalar_one_or_none()
-
-    async def get_with_language(self, user_id: int) -> UserWithLanguage | None:
-        result = await self.session.execute(
-            select(User, Language)
-            .join(Language, Language.id == User.language_id)
-            .where(User.id == user_id, User.deleted_at.is_(None))
-        )
-        row = result.one_or_none()
-        if row is None:
-            return None
-        return UserWithLanguage(user=row[0], language=row[1])
 
     async def exists_by_phone(self, phone: str) -> bool:
         result = await self.session.execute(

@@ -31,7 +31,11 @@ def walk_routes(
     """
     for route in app.routes if routes is None else routes:
         if isinstance(route, APIRoute):
-            yield prefix + route.path, route
+            # The contract is the generated client, and the client is generated
+            # from the schema — routes hidden from it (the per-audience docs
+            # pages) have no operation_id or response_model to demand.
+            if route.include_in_schema:
+                yield prefix + route.path, route
         elif isinstance(route, _IncludedRouter):
             context = route.include_context
             yield from walk_routes(list(context.included_router.routes), prefix + context.prefix)

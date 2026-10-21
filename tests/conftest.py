@@ -46,7 +46,7 @@ from app.main import app
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Everything a test may write, in one CASCADE. The seeded reference data
-# (languages, staff_roles, permissions, service_catalog, amenities, and every
+# (staff_roles, permissions, service_catalog, amenities, and every
 # region and district of Uzbekistan) is deliberately absent — factories depend on
 # it and it is never mutated. `regions` and `districts` left this list when
 # `944af78cfba8` turned them into reference data: truncating them would delete
