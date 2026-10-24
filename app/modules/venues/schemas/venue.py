@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import BaseModel, Field
 
@@ -127,6 +128,20 @@ class VenueRead(ReadSchema):
     status: VenueStatus
     onboarding_step: int
     onboarded_at: datetime | None = None
+
+
+MAX_VENUE_PHOTOS = 5
+
+
+class VenuePhotosReplace(BaseModel):
+    """Muassasa rasmlari, tartibi bilan. Birinchisi — muqova.
+
+    To'plam butunlay qayta yoziladi: ro'yxatda yo'q rasm o'chadi.
+    """
+
+    urls: list[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(
+        max_length=MAX_VENUE_PHOTOS
+    )
 
 
 class VenuePhotoRead(ReadSchema):

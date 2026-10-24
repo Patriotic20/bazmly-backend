@@ -13,9 +13,11 @@ from app.modules.staff.schemas import (
     StaffCountsRead,
     StaffInvitationCreate,
     StaffInvitationCreated,
+    StaffPasswordReset,
     StaffRoleRead,
     VenueStaffListItem,
     VenueStaffRead,
+    VenueStaffUpdate,
 )
 
 router = APIRouter(prefix="/v1/venue/staff", tags=["venue:staff"])
@@ -102,6 +104,45 @@ async def accept_invitation(
     phone: Annotated[str, Query(min_length=4, max_length=20)],
 ) -> VenueStaffRead:
     return await service.accept_invitation(payload, phone)
+
+
+@router.patch(
+    "/{staff_id}",
+    response_model=VenueStaffListItem,
+    operation_id="venue_staff_update",
+    summary="Hodimni tahrirlash",
+    description=(
+        "Ism, rol va faollik. Ism faqat hodim uchun ochilgan akkauntda o'zgaradi; "
+        "egasini tahrirlab bo'lmaydi."
+    ),
+)
+async def update_staff(
+    payload: VenueStaffUpdate,
+    user: Annotated[UserRead, require_permission("staff.manage")],
+    service: StaffServiceDep,
+    staff_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> VenueStaffListItem:
+    return await service.update(user.id, staff_id, payload)
+
+
+@router.post(
+    "/{staff_id}/password",
+    response_model=StaffPasswordReset,
+    operation_id="venue_staff_reset_password",
+    summary="Hodimga yangi parol berish",
+    description=(
+        "Login o'zgarmaydi, eski parol darhol ishlamay qoladi. Yangi parol "
+        "**faqat shu javobda** qaytariladi."
+    ),
+)
+async def reset_staff_password(
+    user: Annotated[UserRead, require_permission("staff.manage")],
+    service: StaffServiceDep,
+    staff_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> StaffPasswordReset:
+    return await service.reset_password(user.id, staff_id)
 
 
 @router.patch(

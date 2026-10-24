@@ -528,12 +528,20 @@ transaction. Routing, dependency resolution and exception handling are all real.
 No service method exists behind these, and a route that returns a lie is worse
 than one absent from the schema. Each needs the service work named:
 
-venue create and `PATCH /{id}/status`; venue photos; zone create; table-QR create;
+venue create and `PATCH /{id}/status`; zone create; table-QR create;
 `GET /venues/by-qr/{token}`; `GET /{venue_id}/guest-tiers`; booking
 confirm/reject; `receipt.pdf`; `GET /bookings/history`; blocked-slot writes; order
-item update/delete/status; menu category and item update/delete; item variants and
-photo; staff invitation revoke and `PATCH /{staff_id}`; review get/update/delete
-and staff reply; payment-card delete and verify; subscription subscribe/cancel.
+item update/delete/status; menu category update/delete and item delete; item
+variants; staff invitation revoke; review get/update/delete and staff reply;
+payment-card delete and verify; subscription subscribe/cancel.
+
+Built since: venue photos (`PUT /{venue_id}/photos`, the set replaced whole, at
+most five), menu item update (`PATCH /items/{item_id}`) with its photo uploaded
+through `POST /v1/media/images`, and `PATCH /staff/{staff_id}` with
+`POST /staff/{staff_id}/password`. Both staff writes check that the row belongs
+to a branch or chain the caller manages — the route guard alone only proves the
+permission at the branch named in the query — and neither touches the name or
+password of someone who joined with their own account.
 
 ## Verification
 

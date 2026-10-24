@@ -15,6 +15,7 @@ from app.modules.venues.schemas import (
     VenueGuestTierRead,
     VenueListItem,
     VenuePhotoRead,
+    VenuePhotosReplace,
     VenueRead,
     VenueSearchParams,
     VenueStatusCountsRead,
@@ -144,6 +145,18 @@ class VenueService:
             raise NotFoundError("Muassasa topilmadi")
         await self.session.commit()
         return VenueRead.model_validate(updated)
+
+    async def replace_photos(
+        self, actor_user_id: int, venue_id: int, payload: VenuePhotosReplace
+    ) -> list[VenuePhotoRead]:
+        await self.staff.require_permission_in_transaction(
+            actor_user_id, venue_id, PERM_BRANCH_MANAGE
+        )
+        if await self.venues.get_by_id(venue_id) is None:
+            raise NotFoundError("Muassasa topilmadi")
+        photos = await self.venues.replace_photos(venue_id, payload.urls)
+        await self.session.commit()
+        return [VenuePhotoRead.model_validate(photo) for photo in photos]
 
     async def recompute_rating_in_transaction(self, venue_id: int) -> None:
         """Denormalized counters are service-owned; no DB trigger does this."""

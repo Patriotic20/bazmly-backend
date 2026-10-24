@@ -135,6 +135,15 @@ class VenueStaffRepository:
         await self.session.flush()
         return result.scalars().one_or_none()
 
+    async def set_role(self, staff_id: int, staff_role_id: int, role_scope: str) -> None:
+        """Both columns together: the composite FK pins the scope to the role."""
+        await self.session.execute(
+            update(VenueStaff)
+            .where(VenueStaff.id == staff_id)
+            .values(staff_role_id=staff_role_id, role_scope=role_scope)
+        )
+        await self.session.flush()
+
     async def list_for_user(self, user_id: int) -> Sequence[VenueStaff]:
         """Every employment row a person holds — one per branch they work at."""
         result = await self.session.execute(

@@ -8,6 +8,7 @@ from sqlalchemy import (
     ColumnElement,
     Select,
     case,
+    delete,
     func,
     literal,
     select,
@@ -424,6 +425,17 @@ class VenueRepository:
         self.session.add(photo)
         await self.session.flush()
         return photo
+
+    async def replace_photos(self, venue_id: int, urls: Sequence[str]) -> Sequence[VenuePhoto]:
+        """The whole set at once, in order; the first is the cover."""
+        await self.session.execute(delete(VenuePhoto).where(VenuePhoto.venue_id == venue_id))
+        photos = [
+            VenuePhoto(venue_id=venue_id, url=url, sort_order=index, is_cover=index == 0)
+            for index, url in enumerate(urls)
+        ]
+        self.session.add_all(photos)
+        await self.session.flush()
+        return photos
 
     async def list_photos(self, venue_id: int) -> Sequence[VenuePhoto]:
         result = await self.session.execute(

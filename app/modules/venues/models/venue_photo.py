@@ -6,7 +6,10 @@ from app.core.database.mixins import IdIntPk, TimestampMixin
 
 
 class VenuePhoto(IdIntPk, TimestampMixin, Base):
-    """Max 10 per venue — enforced in the service, not the database."""
+    """Max 5 per venue (`MAX_VENUE_PHOTOS`) — enforced by the schema, not the database.
+
+    The first by `sort_order` is the cover; the set is always replaced whole.
+    """
 
     __tablename__ = "venue_photos"
 

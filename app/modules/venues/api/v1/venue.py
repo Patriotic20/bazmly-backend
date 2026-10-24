@@ -21,6 +21,8 @@ from app.modules.venues.api.dependencies import (
 from app.modules.venues.schemas import (
     TableCountsCreate,
     VenueCreate,
+    VenuePhotoRead,
+    VenuePhotosReplace,
     VenueRead,
     VenueStatusCountsRead,
     VenueTableRead,
@@ -115,6 +117,25 @@ async def update_branch(
     venue_id: Annotated[int, Path(ge=1)],
 ) -> VenueRead:
     return await service.update_details(user.id, venue_id, payload)
+
+
+@router.put(
+    "/{venue_id}/photos",
+    response_model=list[VenuePhotoRead],
+    operation_id="venue_venues_replace_photos",
+    summary="Muassasa rasmlarini yangilash",
+    description=(
+        "5 tagacha rasm URL i, tartibi bilan; birinchisi muqova bo'ladi. Ro'yxatda "
+        "yo'q rasm o'chiriladi. URL lar `POST /v1/media/images` dan olinadi."
+    ),
+)
+async def replace_photos(
+    payload: VenuePhotosReplace,
+    user: Annotated[UserRead, require_permission("branch.manage")],
+    service: VenueServiceDep,
+    venue_id: Annotated[int, Path(ge=1)],
+) -> list[VenuePhotoRead]:
+    return await service.replace_photos(user.id, venue_id, payload)
 
 
 @router.put(

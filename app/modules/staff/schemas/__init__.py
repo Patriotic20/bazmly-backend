@@ -11,6 +11,7 @@ from app.modules.staff.schemas.staff_role import (
 )
 from app.modules.staff.schemas.venue_staff import (
     StaffCountsRead,
+    StaffPasswordReset,
     VenueStaffCreate,
     VenueStaffListItem,
     VenueStaffRead,
@@ -24,6 +25,7 @@ __all__ = [
     "StaffInvitationCreate",
     "StaffInvitationCreated",
     "StaffInvitationRead",
+    "StaffPasswordReset",
     "StaffRoleRead",
     "StaffRoleWithPermissionsRead",
     "VenueStaffCreate",

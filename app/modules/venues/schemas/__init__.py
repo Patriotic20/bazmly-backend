@@ -1,4 +1,5 @@
 from app.modules.venues.schemas.venue import (
+    MAX_VENUE_PHOTOS,
     SORT_DISTANCE,
     SORT_PRICE,
     SORT_RATING,
@@ -6,6 +7,7 @@ from app.modules.venues.schemas.venue import (
     VenueDetailRead,
     VenueListItem,
     VenuePhotoRead,
+    VenuePhotosReplace,
     VenueRead,
     VenueSearchParams,
     VenueStatusCountsRead,
@@ -29,6 +31,7 @@ from app.modules.venues.schemas.working_hours import (
 )
 
 __all__ = [
+    "MAX_VENUE_PHOTOS",
     "SORT_DISTANCE",
     "SORT_PRICE",
     "SORT_RATING",
@@ -39,6 +42,7 @@ __all__ = [
     "VenueGuestTierRead",
     "VenueListItem",
     "VenuePhotoRead",
+    "VenuePhotosReplace",
     "VenueRead",
     "VenueSearchParams",
     "VenueStatusCountsRead",

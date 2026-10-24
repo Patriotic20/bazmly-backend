@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from datetime import timedelta
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,9 +32,11 @@ from app.modules.staff.schemas import (
     StaffInvitationCreate,
     StaffInvitationCreated,
     StaffInvitationRead,
+    StaffPasswordReset,
     StaffRoleRead,
     VenueStaffListItem,
     VenueStaffRead,
+    VenueStaffUpdate,
 )
 
 INVITATION_TTL = timedelta(hours=72)
@@ -304,10 +307,105 @@ class StaffService:
 
         return VenueStaffRead.model_validate(employment)
 
+    async def _manageable_in_transaction(self, actor_user_id: int, staff_id: int) -> VenueStaff:
+        """The employment row, once the actor is shown to manage *its* staff.
+
+        The route guard only proves `staff.manage` at the branch named in the
+        query, not that the row belongs there — without this, any manager could
+        edit anyone in any chain by changing the id. A branch row is checked at
+        its branch; a chain-wide row (owner, admin) against the chain.
+        """
+        target = await self.staff.get_by_id(staff_id)
+        if target is None:
+            raise NotFoundError("Hodim topilmadi")
+        if target.venue_id is not None:
+            await self.require_permission_in_transaction(
+                actor_user_id, target.venue_id, PERM_STAFF_MANAGE
+            )
+        else:
+            await self.require_group_permission_in_transaction(
+                actor_user_id, target.venue_group_id, PERM_STAFF_MANAGE
+            )
+        role = await self.roles.get_by_id(target.staff_role_id)
+        # The owner is the chain itself: demoting or switching them off would
+        # leave nobody able to undo it.
+        if role is not None and role.slug == "owner":
+            raise PermissionDeniedError("Muassasa egasini tahrirlab bo'lmaydi")
+        return target
+
+    async def _own_staff_account(self, user_id: int) -> User:
+        """The user behind an employment, if it is an account opened for the job.
+
+        Someone who joined with their own account keeps their name and password
+        to themselves; an owner typing in their staff list must not be able to
+        reset a stranger's login.
+        """
+        user = await self.users.get_by_id(user_id)
+        if user is None:
+            raise NotFoundError("Hodim topilmadi")
+        if user.role != UserRole.VENUE_STAFF:
+            raise ValidationFailedError(
+                "Bu hodim o'z akkaunti bilan kiradi — ismi va parolini o'zi o'zgartiradi"
+            )
+        return user
+
+    async def update(
+        self, actor_user_id: int, staff_id: int, payload: VenueStaffUpdate
+    ) -> VenueStaffListItem:
+        target = await self._manageable_in_transaction(actor_user_id, staff_id)
+        changes = payload.model_dump(exclude_unset=True)
+
+        if "first_name" in changes and changes["first_name"] is None:
+            raise ValidationFailedError("Ism bo'sh bo'lishi mumkin emas")
+        names: dict[str, Any] = {
+            key: (changes[key] or "").strip()
+            for key in ("first_name", "last_name")
+            if key in changes
+        }
+        if names:
+            user = await self._own_staff_account(target.user_id)
+            await self.users.update_profile(user.id, names)
+
+        if changes.get("staff_role_id") not in (None, target.staff_role_id):
+            role = await self.roles.get_by_id(changes["staff_role_id"])
+            if role is None or role.slug == "owner":
+                raise NotFoundError("Bunday rol mavjud emas")
+            if role.scope == "venue" and target.venue_id is None:
+                raise ValidationFailedError(
+                    "Filial darajasidagi rol uchun filial ko'rsatilishi kerak"
+                )
+            await self.staff.set_role(target.id, role.id, role.scope)
+
+        if changes.get("is_active") is not None:
+            await self.staff.set_active(target.id, changes["is_active"], utcnow_naive())
+
+        try:
+            await self.session.commit()
+        except IntegrityError as error:
+            raise translate_integrity_error(error) from error
+
+        rows = await self.list_for_group(target.venue_group_id)
+        return next(row for row in rows if row.id == target.id)
+
+    async def reset_password(self, actor_user_id: int, staff_id: int) -> StaffPasswordReset:
+        """A fresh password for a staff account, returned once.
+
+        The login stays; only the password changes, so the person keeps signing
+        in where they did and the old password stops working at once.
+        """
+        target = await self._manageable_in_transaction(actor_user_id, staff_id)
+        user = await self._own_staff_account(target.user_id)
+        login = user.login or generate_login()
+        password = generate_password()
+        await self.users.set_credentials(user.id, login, hash_secret(password), True)
+        await self.session.commit()
+        return StaffPasswordReset(login=login, temporary_password=password)
+
     async def set_active(
         self, actor_user_id: int, venue_id: int, staff_id: int, is_active: bool
     ) -> VenueStaffRead:
         await self.require_permission_in_transaction(actor_user_id, venue_id, PERM_STAFF_MANAGE)
+        await self._manageable_in_transaction(actor_user_id, staff_id)
         updated = await self.staff.set_active(staff_id, is_active, utcnow_naive())
         if updated is None:
             raise NotFoundError("Hodim topilmadi")
