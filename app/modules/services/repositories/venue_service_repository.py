@@ -1,7 +1,8 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
-from sqlalchemy import case, or_, select
+from sqlalchemy import case, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.services.models import (
@@ -110,3 +111,26 @@ class VenueServiceRepository:
             .order_by(VenueServiceItem.sort_order, VenueServiceItem.id)
         )
         return result.scalars().all()
+
+    async def update_fields(self, service_id: int, values: dict[str, Any]) -> VenueService | None:
+        if not values:
+            return await self.get_by_id(service_id)
+        result = await self.session.execute(
+            update(VenueService)
+            .where(VenueService.id == service_id)
+            .values(**values)
+            .returning(VenueService)
+        )
+        await self.session.flush()
+        return result.scalars().one_or_none()
+
+    async def replace_items(
+        self, venue_service_id: int, items: Sequence[VenueServiceItem]
+    ) -> Sequence[VenueServiceItem]:
+        """The Taomlar list as a whole; rows left out of `items` are gone."""
+        await self.session.execute(
+            delete(VenueServiceItem).where(VenueServiceItem.venue_service_id == venue_service_id)
+        )
+        self.session.add_all(items)
+        await self.session.flush()
+        return items

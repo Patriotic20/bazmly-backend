@@ -543,6 +543,15 @@ to a branch or chain the caller manages — the route guard alone only proves th
 permission at the branch named in the query — and neither touches the name or
 password of someone who joined with their own account.
 
+Venue services gained `PATCH` and `DELETE /venue/services/{id}`. Delete switches
+the row off instead of removing it, because `booking_services` still point at it.
+Writing one checks that the row is in the chain of the branch in the query and
+is that branch's own or chain-wide. `create` had trusted the `group_id` in its
+query outright — the guard only proves the branch — so a manager could price a
+service into another chain; it now requires the branch's own chain. The
+dasturxon became two catalogue entries, standart (the old `dasturxon_tuzash`,
+slug kept) and premium, rather than a level column on `venue_services`.
+
 ## Verification
 
 | Check | Result |

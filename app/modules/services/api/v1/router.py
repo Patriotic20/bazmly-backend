@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from app.core.dependencies import SessionDep, require_permission
 from app.modules.auth.schemas import UserRead
@@ -9,6 +9,7 @@ from app.modules.services.schemas import (
     ServiceCatalogRead,
     VenueServiceCreate,
     VenueServiceRead,
+    VenueServiceUpdate,
 )
 from app.modules.services.services import VenueServiceCatalogService
 from app.modules.venues.enums import VenueTypeSlug
@@ -50,6 +51,45 @@ async def create_venue_service(
     group_id: Annotated[int, Query(ge=1)],
 ) -> VenueServiceRead:
     return await VenueServiceCatalogService(session).create(user.id, venue_id, group_id, payload)
+
+
+@venue_router.patch(
+    "/venue/services/{service_id}",
+    response_model=VenueServiceRead,
+    operation_id="venue_services_update",
+    summary="Xizmatni tahrirlash",
+    description=(
+        "Narx, birlik va faollik. `items` yuborilsa, Taomlar ro'yxati butunlay qayta yoziladi."
+    ),
+)
+async def update_venue_service(
+    payload: VenueServiceUpdate,
+    user: Annotated[UserRead, require_permission("settings.edit")],
+    session: SessionDep,
+    service_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> VenueServiceRead:
+    return await VenueServiceCatalogService(session).update(user.id, venue_id, service_id, payload)
+
+
+@venue_router.delete(
+    "/venue/services/{service_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+    operation_id="venue_services_remove",
+    summary="Xizmatni olib tashlash",
+    description=(
+        "Xizmat o'chirilmaydi, nofaol qilinadi: oldingi bronlar unga bog'langan. "
+        "Mijozlarga endi ko'rinmaydi."
+    ),
+)
+async def remove_venue_service(
+    user: Annotated[UserRead, require_permission("settings.edit")],
+    session: SessionDep,
+    service_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> None:
+    await VenueServiceCatalogService(session).remove(user.id, venue_id, service_id)
 
 
 router = APIRouter()

@@ -34,6 +34,8 @@ class VenueServiceUpdate(UpdateSchema):
     price_unit: ServicePriceUnit | None = None
     is_active: bool | None = None
     sort_order: int | None = None
+    # Yuborilsa, Taomlar ro'yxati butunlay qayta yoziladi; yuborilmasa tegilmaydi.
+    items: list[VenueServiceItemCreate] | None = None
 
 
 class VenueServiceRead(ReadSchema):
@@ -43,6 +45,8 @@ class VenueServiceRead(ReadSchema):
     venue_group_id: int
     venue_id: int | None = None
     service_catalog_id: int
+    # Katalogdagi kalit: `dasturxon_tuzash` va `dasturxon_premium` bitta guruh.
+    slug: str
     name: str
     price: Money
     currency: str
