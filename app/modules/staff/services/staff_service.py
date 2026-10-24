@@ -160,14 +160,18 @@ class StaffService:
         group_id: int,
         payload: StaffInvitationCreate,
     ) -> StaffInvitationCreated:
-        """Issue a login and a temporary password, store the hash, return both once.
+        """Create the employee outright and hand back the login and password once.
 
-        Returning a live credential is a deliberate exception to the rule that no
-        read schema carries a secret. With SMS gone there is no channel left to
-        deliver it, and an invitation nobody can redeem is worse than one the owner
-        reads off their own screen and hands over. It is returned by this call
-        alone — never by a list or a re-read — it expires, and
-        `must_change_password` forces rotation on first login. See DECISIONS.md.
+        The person is a working account the moment this returns: they sign in
+        with these credentials and appear in the staff list straight away. There
+        is no accept step — nothing in the app ever offered one, so every
+        invitation issued before this stayed a login that did not exist.
+
+        The invitation row is still written, already accepted, as the record of
+        who was added when. Returning a live credential is a deliberate exception
+        to the rule that no read schema carries a secret: with SMS gone there is
+        no channel to deliver it but the owner's own screen. It is returned by
+        this call alone — never by a list or a re-read. See DECISIONS.md.
         """
         guard_venue = payload.venue_id
         if guard_venue is None:
@@ -184,26 +188,63 @@ class StaffService:
         if role.scope == "venue" and payload.venue_id is None:
             raise ValidationFailedError("Filial darajasidagi rol uchun filial ko'rsatilishi kerak")
 
-        temporary_password = generate_password()
-        suggested_login = generate_login()
-        invitation = await self.invitations.create(
-            StaffInvitation(
-                venue_group_id=group_id,
-                venue_id=payload.venue_id,
-                full_name=payload.full_name,
-                phone=payload.phone,
-                staff_role_id=payload.staff_role_id,
-                temp_password_hash=hash_secret(temporary_password),
-                expires_at=utcnow_naive() + INVITATION_TTL,
+        now = utcnow_naive()
+        password = generate_password()
+        temporary_password: str | None = password
+        user = await self.users.get_by_phone(payload.phone)
+        if user is None:
+            names = payload.full_name.split(" ", 1)
+            user = await self.users.create(
+                User(
+                    first_name=names[0],
+                    last_name=names[1] if len(names) > 1 else "",
+                    phone=payload.phone,
+                    role=UserRole.VENUE_STAFF,
+                    status=UserStatus.ACTIVE,
+                )
             )
-        )
-        await self.session.commit()
-        # `login` is advisory — the invitation row has no column for it, so
-        # `accept_invitation` uses whatever login the person supplies. See
-        # DECISIONS.md.
+        login = user.login or generate_login()
+        if user.password_hash is None:
+            await self.users.set_credentials(user.id, login, hash_secret(password), True)
+        else:
+            # Someone who already signs in with their own password keeps it; the
+            # owner must not be able to reset a stranger's account by typing
+            # their number. They sign in by phone as before.
+            temporary_password = None
+            login = user.login or payload.phone
+
+        try:
+            invitation = await self.invitations.create(
+                StaffInvitation(
+                    venue_group_id=group_id,
+                    venue_id=payload.venue_id,
+                    full_name=payload.full_name,
+                    phone=payload.phone,
+                    staff_role_id=role.id,
+                    temp_password_hash=hash_secret(password),
+                    expires_at=now + INVITATION_TTL,
+                    accepted_at=now,
+                )
+            )
+            await self.staff.create(
+                VenueStaff(
+                    venue_group_id=group_id,
+                    venue_id=payload.venue_id,
+                    user_id=user.id,
+                    staff_role_id=role.id,
+                    role_scope=role.scope,
+                    is_active=True,
+                    invited_at=now,
+                    activated_at=now,
+                )
+            )
+            await self.session.commit()
+        except IntegrityError as error:
+            raise translate_integrity_error(error) from error
+
         return StaffInvitationCreated(
             **StaffInvitationRead.model_validate(invitation).model_dump(),
-            login=suggested_login,
+            login=login,
             temporary_password=temporary_password,
         )
 

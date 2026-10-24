@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
+from app.modules.staff.repositories import VenueStaffRepository
 from app.modules.venue_groups.repositories import VenueGroupRepository
 from app.modules.venue_groups.schemas import (
     BranchListItem,
@@ -16,9 +17,16 @@ class VenueGroupService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.groups = VenueGroupRepository(session)
+        self.staff = VenueStaffRepository(session)
 
     async def get_for_owner(self, owner_id: int) -> VenueGroupRead:
         group = await self.groups.get_by_owner(owner_id)
+        if group is None:
+            # An employee owns nothing but works somewhere; the panel opens on
+            # that chain, or it would greet every staff member as a stranger.
+            employment = await self.staff.list_for_user(owner_id)
+            if employment:
+                group = await self.groups.get_by_id(employment[0].venue_group_id)
         if group is None:
             raise NotFoundError("Sizda hali tarmoq yo'q")
         return VenueGroupRead.model_validate(group)

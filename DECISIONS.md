@@ -158,6 +158,20 @@ from the create call alone. No list, no re-read, and no other endpoint exposes
 them; the invitation still expires and `must_change_password` still forces
 rotation.
 
+### Adding a staff member creates the account at once
+
+The invitation used to be a promise: the login it returned was only a suggestion,
+and the account appeared when the person redeemed the temporary password through
+`POST /invitations/accept`. No screen ever called that route, so every invited
+person was a login that did not exist and a name missing from the staff list.
+`invite` now creates the user, sets the returned login and password on it, and
+writes the `venue_staff` row in the same transaction; the invitation row is kept,
+already accepted, as the record of who was added. If the phone already belongs to
+an account with its own password, that password is left alone — an owner typing a
+number must not be able to take over someone's account — and
+`temporary_password` comes back null. The accept route stays for invitations
+issued before the change.
+
 ### The booking confirmation became an in-app notification
 
 `queue_booking_confirmation` was the only booking notification and it was an SMS.

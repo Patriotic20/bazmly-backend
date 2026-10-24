@@ -45,4 +45,6 @@ class StaffInvitationCreated(StaffInvitationRead):
     """
 
     login: str
-    temporary_password: str
+    # Null when the phone already belonged to an account with its own password:
+    # that person keeps it and signs in by phone.
+    temporary_password: str | None = None
