@@ -25,9 +25,11 @@ def test_registry_covers_every_model_file() -> None:
     # 52 before `languages` was dropped with the UI-language surface: content has
     # been Uzbek-only since the translation collapse, so the table named a choice
     # the API could not act on and the client now keeps it locally (2026-08-21).
-    assert len(model_files) == 51
-    assert len(Base.metadata.tables) == 51
-    assert len(models_registry.__all__) == 51
+    # 51 before `media_files` gave dish photos somewhere to be uploaded to
+    # (2026-10-24).
+    assert len(model_files) == 52
+    assert len(Base.metadata.tables) == 52
+    assert len(models_registry.__all__) == 52
 
 
 def test_no_model_imports_another_modules_model() -> None:

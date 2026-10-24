@@ -63,6 +63,7 @@ app = FastAPI(
         {"name": "venue:venues", "description": "Filiallar — filial boshqaruvi."},
         {"name": "venue:staff", "description": "Hodimlar — ish joyi va taklifnomalar."},
         {"name": "venue:menu", "description": "Menyu konstruktori."},
+        {"name": "venue:media", "description": "Taom va muassasa rasmlarini yuklash."},
         {"name": "services", "description": "Qo'shimcha xizmatlar katalogi."},
         {"name": "venue:services", "description": "Xizmatlarga narx belgilash."},
         {"name": "bookings", "description": "Mijoz bronlari — Joylar bo'limi."},

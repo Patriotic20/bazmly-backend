@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationFailedError
 from app.modules.menu.enums import MenuItemStatus
 from app.modules.menu.models import (
     MenuCategory,
@@ -18,6 +18,7 @@ from app.modules.menu.schemas import (
     MenuItemCreate,
     MenuItemListItem,
     MenuItemRead,
+    MenuItemUpdate,
     MenuItemVariantCreate,
     MenuItemVariantRead,
 )
@@ -179,6 +180,46 @@ class MenuService:
 
         await self.session.commit()
         return await self.get_item(item.id, venue_id)
+
+    async def update_item(
+        self,
+        actor_user_id: int,
+        venue_id: int,
+        item_id: int,
+        payload: MenuItemUpdate,
+    ) -> MenuItemRead:
+        """Edit a dish from a branch that offers it.
+
+        The change is to the chain's catalogue entry, so every branch sees the new
+        name and photo; a branch price stays an override in `menu_item_branches`.
+        """
+        await self.staff.require_permission_in_transaction(actor_user_id, venue_id, PERM_MENU_EDIT)
+        # Scoped through the branch: a dish this branch does not offer is not
+        # this branch's to edit, even with `menu.edit` here.
+        detail = await self.items.get_with_variants(item_id, venue_id)
+        if detail is None:
+            raise NotFoundError("Bu taom ushbu filial menyusida yo'q")
+        item = detail.item
+
+        values = payload.model_dump(exclude_unset=True)
+        for column in ("menu_category_id", "name", "sort_order", "is_available", "status"):
+            if column in values and values[column] is None:
+                raise ValidationFailedError(f"`{column}` bo'sh bo'lishi mumkin emas")
+        # The same rule the create schema and the CHECK constraint enforce.
+        if "base_price" in values:
+            if item.has_variants and values["base_price"] is not None:
+                raise ValidationFailedError("Variantli taomda asosiy narx bo'lmasligi kerak")
+            if not item.has_variants and values["base_price"] is None:
+                raise ValidationFailedError("Variantsiz taom uchun asosiy narx kerak")
+        if "menu_category_id" in values and values["menu_category_id"] != item.menu_category_id:
+            current = await self.categories.get_by_id(item.menu_category_id)
+            target = await self.categories.get_by_id(values["menu_category_id"])
+            if target is None or current is None or target.venue_group_id != current.venue_group_id:
+                raise NotFoundError("Bunday toifa topilmadi")
+
+        await self.items.update_fields(item_id, values)
+        await self.session.commit()
+        return await self.get_item(item_id, venue_id)
 
     async def set_branch_availability(
         self,

@@ -20,6 +20,7 @@ from app.modules.menu.schemas import (
     MenuItemCreate,
     MenuItemListItem,
     MenuItemRead,
+    MenuItemUpdate,
     MenuItemVariantCreate,
 )
 
@@ -112,6 +113,26 @@ async def get_item(
     venue_id: Annotated[int, Query(ge=1)],
 ) -> MenuItemRead:
     return await service.get_item(item_id, venue_id)
+
+
+@router.patch(
+    "/items/{item_id}",
+    response_model=MenuItemRead,
+    operation_id="venue_menu_update_item",
+    summary="Taomni tahrirlash",
+    description=(
+        "Nomi, toifasi, narxi, tavsifi va rasmi. Faqat yuborilgan maydonlar "
+        "o'zgaradi; o'zgarish tarmoqdagi barcha filiallarga taalluqli."
+    ),
+)
+async def update_item(
+    payload: MenuItemUpdate,
+    user: Annotated[UserRead, require_permission("menu.edit")],
+    service: MenuServiceDep,
+    item_id: Annotated[int, Path(ge=1)],
+    venue_id: Annotated[int, Query(ge=1)],
+) -> MenuItemRead:
+    return await service.update_item(user.id, venue_id, item_id, payload)
 
 
 @router.put(
