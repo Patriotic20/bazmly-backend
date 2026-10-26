@@ -3,9 +3,10 @@
 
 from datetime import date, datetime, time
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.venues.models import VenueSpecialDay
+from app.modules.venues.models import VenueSpecialDay, VenueWorkingHours
 from app.modules.venues.repositories import SORT_DISTANCE, VenueRepository
 from tests.repositories import factories
 
@@ -135,3 +136,36 @@ async def test_search_returns_the_name_off_the_venue_row(session: AsyncSession) 
 
     row = next(item for item in page.items if item.venue.id == venue.id)
     assert row.name == "Tinchlik Plaza"
+
+
+async def test_hours_that_run_past_midnight_stay_open_into_the_next_day(
+    session: AsyncSession,
+) -> None:
+    """10:00-02:00 closes before it opens. It is open on its own evening and in
+    the small hours that follow — by the previous day's row — and shut between
+    02:00 and 10:00. Read as a plain BETWEEN it would never be open at all."""
+    venue = await factories.make_venue(session, name="Tungi Kafe")
+    await factories.make_working_hours(session, venue, time(10, 0), time(2, 0))
+    repository = VenueRepository(session)
+
+    monday = date(2026, 8, 3)
+    assert await repository.is_open_at(venue.id, datetime.combine(monday, time(23, 30))) is True
+    tuesday_small_hours = datetime(2026, 8, 4, 1, 30)
+    assert await repository.is_open_at(venue.id, tuesday_small_hours) is True
+    assert await repository.is_open_at(venue.id, datetime(2026, 8, 4, 5, 0)) is False
+    assert await repository.is_open_at(venue.id, datetime(2026, 8, 4, 12, 0)) is True
+
+
+async def test_the_small_hours_follow_the_day_that_began_them(session: AsyncSession) -> None:
+    """If Monday is closed, its night does not spill into Tuesday morning."""
+    venue = await factories.make_venue(session, name="Dam olish")
+    await factories.make_working_hours(session, venue, time(10, 0), time(2, 0))
+
+    await session.execute(
+        update(VenueWorkingHours)
+        .where(VenueWorkingHours.venue_id == venue.id, VenueWorkingHours.weekday == 0)
+        .values(is_closed=True)
+    )
+    repository = VenueRepository(session)
+
+    assert await repository.is_open_at(venue.id, datetime(2026, 8, 4, 1, 30)) is False

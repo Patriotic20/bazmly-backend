@@ -9,8 +9,10 @@ from sqlalchemy import (
     Select,
     case,
     delete,
+    exists,
     func,
     literal,
+    or_,
     select,
     update,
 )
@@ -87,6 +89,13 @@ class VenueStatusCounts:
     closed: int
 
 
+def _within(at: Any, opens: Any, closes: Any) -> ColumnElement[bool]:
+    """Inside one day's hours. A day that closes at or before it opens runs past
+    midnight (10:00-02:00), so on its own date it is open from `opens` onwards;
+    the hours after midnight are answered by the next day's check."""
+    return case((closes > opens, at.between(opens, closes)), else_=at >= opens)
+
+
 class VenueRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -110,8 +119,8 @@ class VenueRepository:
                         VenueSpecialDay.opens_at.is_(None) | VenueSpecialDay.closes_at.is_(None),
                         literal(False),
                     ),
-                    else_=literal(local_time).between(
-                        VenueSpecialDay.opens_at, VenueSpecialDay.closes_at
+                    else_=_within(
+                        literal(local_time), VenueSpecialDay.opens_at, VenueSpecialDay.closes_at
                     ),
                 )
             )
@@ -133,8 +142,8 @@ class VenueRepository:
                         | VenueWorkingHours.closes_at.is_(None),
                         literal(False),
                     ),
-                    else_=literal(local_time).between(
-                        VenueWorkingHours.opens_at, VenueWorkingHours.closes_at
+                    else_=_within(
+                        literal(local_time), VenueWorkingHours.opens_at, VenueWorkingHours.closes_at
                     ),
                 )
             )
@@ -147,7 +156,24 @@ class VenueRepository:
             .scalar_subquery()
         )
 
-        return func.coalesce(special_day, working_hours, literal(False))
+        # The small hours of a night that began yesterday: Monday 10:00-02:00 is
+        # still open at 01:30 on Tuesday, by Monday's row, not Tuesday's.
+        yesterday_tail = (
+            exists()
+            .where(
+                VenueWorkingHours.venue_id == Venue.id,
+                VenueWorkingHours.weekday == (weekday - 1) % 7,
+                VenueWorkingHours.is_closed.is_(False),
+                VenueWorkingHours.closes_at <= VenueWorkingHours.opens_at,
+                literal(local_time) < VenueWorkingHours.closes_at,
+            )
+            .correlate(Venue)
+        )
+
+        return func.coalesce(
+            special_day,
+            or_(func.coalesce(working_hours, literal(False)), yesterday_tail),
+        )
 
     def _search_statement(
         self,
