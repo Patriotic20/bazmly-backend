@@ -65,8 +65,10 @@ DEFAULT_CLOSES_AT = time(23, 0)
 
 # A to'yxona is booked by guest-count band, and a hall event cannot be stored
 # without one (`guest_tier_id` is NOT NULL for `hall_event`). Nothing in the API
-# creates bands yet, so a branch is born with a single open band priced at its
-# own `base_price` — or nothing, when it gave none.
+# creates bands yet, so a branch is born with a single band spanning its
+# `capacity_min`-`capacity_max` (from 1, open-ended, when it gave none), priced
+# at its own `base_price` — or nothing; the guests pay through a per-guest
+# dasturxon instead.
 DEFAULT_TIER_MIN_GUESTS = 1
 
 
@@ -268,8 +270,10 @@ class VenueOnboardingService:
             await self.tiers.create(
                 VenueGuestTier(
                     venue_id=venue_id,
-                    min_guests=DEFAULT_TIER_MIN_GUESTS,
-                    max_guests=None,
+                    # The hall's own guest range, so a booking outside it is
+                    # refused rather than priced into an empty "1+" band.
+                    min_guests=payload.capacity_min or DEFAULT_TIER_MIN_GUESTS,
+                    max_guests=payload.capacity_max,
                     base_price=payload.base_price or Decimal("0"),
                     sort_order=0,
                 )

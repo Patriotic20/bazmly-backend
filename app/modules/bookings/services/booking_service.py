@@ -47,6 +47,7 @@ from app.modules.bookings.schemas import (
 )
 from app.modules.menu.models import MenuItem
 from app.modules.menu.repositories import MenuItemRepository
+from app.modules.services.enums import ServicePriceUnit
 from app.modules.services.repositories import VenueServiceRepository
 from app.modules.staff.repositories import VenueStaffRepository
 from app.modules.venues.models import Venue
@@ -114,7 +115,9 @@ class BookingService:
             )
 
         items, menu_subtotal = await self._build_items_in_transaction(venue.id, payload.items)
-        service_rows, services_total = await self._build_services_in_transaction(payload.services)
+        service_rows, services_total = await self._build_services_in_transaction(
+            payload.services, venue, payload.guests_count, payload.start_time, payload.end_time
+        )
         quote = self._assemble_price(
             venue_deposit_percent=venue.deposit_percent if venue.requires_deposit else None,
             base_amount=menu_subtotal,
@@ -176,7 +179,9 @@ class BookingService:
                 f"{payload.guests_count} mehmon uchun bu muassasada narx bosqichi yo'q"
             )
 
-        service_rows, services_total = await self._build_services_in_transaction(payload.services)
+        service_rows, services_total = await self._build_services_in_transaction(
+            payload.services, venue, payload.guests_count, payload.start_time, payload.end_time
+        )
         quote = self._assemble_price(
             venue_deposit_percent=venue.deposit_percent if venue.requires_deposit else None,
             base_amount=_money(tier.base_price),
@@ -519,22 +524,45 @@ class BookingService:
         return f"#{item.id}"
 
     async def _build_services_in_transaction(
-        self, requested: Sequence[BookingServiceCreate]
+        self,
+        requested: Sequence[BookingServiceCreate],
+        venue: Venue,
+        guests_count: int,
+        start: time,
+        end: time,
     ) -> tuple[list[BookingServiceRow], Decimal]:
+        """The services as priced lines, quantities worked out here.
+
+        The quantity follows the service's unit — every guest for a per-guest
+        dasturxon, every started hour for a per-hour one, once otherwise — and
+        is never the client's number: a quantity of one for three hundred guests
+        would sell the whole spread at the price of one plate. The service must
+        also be this venue's, chain-wide or its own, and still offered.
+        """
+        hours = max(1, -(-((end.hour * 60 + end.minute) - (start.hour * 60 + start.minute)) // 60))
         rows: list[BookingServiceRow] = []
         total = Decimal("0")
         for entry in requested:
             service = await self.venue_services.get_by_id(entry.venue_service_id)
-            if service is None:
+            if (
+                service is None
+                or not service.is_active
+                or service.venue_group_id != venue.venue_group_id
+                or service.venue_id not in (None, venue.id)
+            ):
                 raise NotFoundError("Xizmat topilmadi")
+            quantity = {
+                ServicePriceUnit.PER_GUEST: guests_count,
+                ServicePriceUnit.PER_HOUR: hours,
+            }.get(ServicePriceUnit(service.price_unit), 1)
             # Snapshotted so the receipt keeps the name it was sold under.
             name = await self.venue_services.catalog_name(service)
-            line_total = _money(service.price * entry.quantity)
+            line_total = _money(service.price * quantity)
             total += line_total
             rows.append(
                 BookingServiceRow(
                     venue_service_id=service.id,
-                    quantity=entry.quantity,
+                    quantity=quantity,
                     unit_price=_money(service.price),
                     name_snapshot=name,
                     total_price=line_total,

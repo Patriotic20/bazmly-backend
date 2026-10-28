@@ -552,6 +552,14 @@ service into another chain; it now requires the branch's own chain. The
 dasturxon became two catalogue entries, standart (the old `dasturxon_tuzash`,
 slug kept) and premium, rather than a level column on `venue_services`.
 
+A booked service's quantity is worked out by the server from its unit — every
+guest for `per_guest`, every started hour for `per_hour`, once for `flat` —
+and the client's `quantity` is ignored. Taken from the request, a per-guest
+dasturxon could be bought for three hundred guests at the price of one; the
+same check now refuses a service of another chain or one switched off. A
+to'yxona's default guest band spans its `capacity_min`-`capacity_max`, so a
+count outside the hall is refused by the band rather than priced at nothing.
+
 ## Verification
 
 | Check | Result |

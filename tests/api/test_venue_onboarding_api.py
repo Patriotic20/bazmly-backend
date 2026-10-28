@@ -149,6 +149,24 @@ async def test_a_new_toyxona_is_born_with_an_open_guest_band(
     assert (tier.min_guests, tier.max_guests) == (1, None)
 
 
+async def test_a_toyxona_with_a_capacity_gets_a_band_over_that_range(
+    api_client: AsyncClient, session: AsyncSession
+) -> None:
+    """200-1000 guests is the hall the owner described; eleven is not a wedding
+    it takes, and the band is what refuses it at booking."""
+    user = await factories.make_user(session)
+    body = await group_payload(session)
+    body["branch"] |= {"capacity_min": 200, "capacity_max": 1000}
+    created = await api_client.post("/api/v1/venue/groups", json=body, headers=auth_header(user.id))
+    assert created.status_code == 201, created.text
+    venue_id = created.json()["branches"][0]["id"]
+
+    [tier] = (
+        await session.execute(select(VenueGuestTier).where(VenueGuestTier.venue_id == venue_id))
+    ).scalars()
+    assert (tier.min_guests, tier.max_guests) == (200, 1000)
+
+
 async def test_reads_return_the_real_name(api_client: AsyncClient, session: AsyncSession) -> None:
     """`name` is a column now, not a resolved translation — the list route used to
     hand back an empty string for it."""
